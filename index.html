@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  >
+  <title>Glass Care Enterprises</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <div class="brand-icon">
+      ◈
+    </div>
+    <div>
+      <h1>GLASS CARE</h1>
+      <h2>ENTERPRISES</h2>
+      <p>PROFESSIONAL GLASS ESTIMATES</p>
+    </div>
+  </div>
+  <div class="estimate-info">
+    <div>
+      <span>Estimate No.</span>
+      <strong id="estimateNumber"></strong>
+    </div>
+    <div>
+      <span>Date</span>
+      <input type="date" id="estimateDate">
+    </div>
+    <div>
+      <span>State</span>
+      <select id="customerState"></select>
+    </div>
+  </div>
+  <div class="header-actions">
+    <button class="secondary-btn">
+      ⚙ Company
+    </button>
+    <button
+      class="print-btn"
+      onclick="window.print()"
+    >
+      🖨 Print Estimate
+    </button>
+  </div>
+</header>
+<div class="container">
+  <!-- CUSTOMER -->
+  <section class="customer-card">
+    <h2>Customer & Project Details</h2>
+    <div class="customer-grid">
+      <input
+        id="customerName"
+        placeholder="Customer Name"
+      >
+      <input
+        id="flatNo"
+        placeholder="Flat No / Location"
+      >
+      <input
+        id="buildingName"
+        placeholder="Building / Project Name"
+      >
+      <input
+        id="customerPhone"
+        placeholder="Phone Number"
+      >
+    </div>
+  </section>
+  <div class="main-layout">
+    <!-- LEFT -->
+    <div class="left-column">
+      <section class="add-card">
+        <div class="section-heading">
+          <div>
+            <h2>🛒 ADD GLASS / ITEM</h2>
+            <p>
+              Pick from your master list, or type a new one.
+            </p>
+          </div>
+        </div>
+        <div class="product-grid">
+          <div class="field">
+            <label>Product Category</label>
+            <select id="category">
+              <option value="">-- Select category --</option>
+              <option value="__custom__">＋ Type new category...</option>
+            </select>
+            <input
+              id="categoryCustom"
+              placeholder="Type new category"
+              style="display:none;margin-top:8px;"
+            >
+          </div>
+          <div class="field">
+            <label>Item Name</label>
+            <select id="itemName">
+              <option value="">-- Select item --</option>
+              <option value="__custom__">＋ Type new item...</option>
+            </select>
+            <input
+              id="itemNameCustom"
+              placeholder="Type new item name"
+              style="display:none;margin-top:8px;"
+            >
+          </div>
+          <div class="field">
+            <label>Factory / Vendor</label>
+            <select id="factory">
+              <option value="">-- Select factory --</option>
+              <option value="__custom__">＋ Type new factory...</option>
+            </select>
+            <input
+              id="factoryCustom"
+              placeholder="Type new factory name"
+              style="display:none;margin-top:8px;"
+            >
+          </div>
+        </div>
+        <div class="measurement-grid">
+          <div class="field">
+            <label>Frame Height (mm)</label>
+            <input
+              type="number"
+              id="height"
+              placeholder="1800"
+              min="0"
+            >
+          </div>
+          <div class="multiply">
+            ×
+          </div>
+          <div class="field">
+            <label>Frame Width (mm)</label>
+            <input
+              type="number"
+              id="width"
+              placeholder="1200"
+              min="0"
+            >
+          </div>
+          <div class="field">
+            <label>Quantity</label>
+            <input
+              type="number"
+              id="quantity"
+              value="1"
+              min="1"
+            >
+          </div>
+        </div>
+        <div class="product-details">
+          <div class="field">
+            <label>Unit</label>
+            <select id="unitDisplay">
+              <option value="Sqft">Sqft</option>
+              <option value="R.ft">R.ft</option>
+              <option value="mm">mm</option>
+            </select>
+          </div>
+          
+          <div class="field">
+            <label>Rate (₹) <span id="rateSourceTag" class="rate-tag"></span></label>
+            <div class="rate-row">
+              <input
+                type="number"
+                id="rate"
+                value="0"
+                readonly
+              min="0"
+              >
+              <button type="button" id="editRateBtn" class="edit-rate-btn" title="Edit the rate">✏️</button>
+              <button type="button" id="saveRateBtn" class="save-rate-btn" style="display:none;" title="Save this rate as the default for this category">💾</button>
+            </div>
+          </div>
+        </div>
+        <div class="rate-book-toggle">
+          <button type="button" id="toggleRateBook">⚙ Manage Rate Book</button>
+          <span id="rateBookCount"></span>
+        </div>
+        <div id="rateBookPanel" class="rate-book-panel" style="display:none;">
+          <p class="rate-book-hint">Rates you've saved per category. Edit or remove any of them — they only affect auto-fill, never a saved estimate.</p>
+          <div id="rateBookList" class="rate-book-list"></div>
+        </div>
+        <div class="live-calculation">
+          <div>
+            <span>Original Size</span>
+            <strong id="originalSize">
+              -- × -- mm
+            </strong>
+          </div>
+          <div class="arrow">→</div>
+          <div>
+            <span>Rounded Size</span>
+            <strong id="roundedSize">
+              -- × -- mm
+            </strong>
+          </div>
+          <div>
+            <span>Area</span>
+            <strong id="areaDisplay">
+              0.00 Sqft
+            </strong>
+          </div>
+          <div>
+            <span>Amount</span>
+            <strong id="amountDisplay">
+              ₹0.00
+            </strong>
+          </div>
+        </div>
+        <div class="formula">
+          ⓘ Sqft items: Rounded Height × Rounded Width × Qty ÷ 92903.04. R.ft items: Perimeter × Qty ÷ 304.8. Pcs/Job: Qty × Rate. Rate is always entered manually to match your pricing.
+        </div>
+        <div class="add-action">
+          <span id="calculationHint">
+            Fill in the item details above.
+          </span>
+          <button id="addItem">
+            + ADD ITEM TO ESTIMATE
+          </button>
+        </div>
+      </section>
+      <!-- TABLE -->
+      <section class="estimate-card">
+        <div class="estimate-heading">
+          <div>
+            <h2>▣ CURRENT ESTIMATE</h2>
+            <p id="itemCount">0 items added</p>
+          </div>
+          <button id="clearAll">
+            CLEAR ALL
+          </button>
+        </div>
+        <p class="edit-hint">Click any cell to edit it directly. Amount recalculates automatically.</p>
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>CATEGORY / ITEM</th>
+                <th>SIZE (mm)</th>
+                <th>UNIT</th>
+                <th>QTY</th>
+                <th>AREA / RUN FT</th>
+                <th>RATE (₹)</th>
+                <th>AMOUNT (₹)</th>
+                <th>ACTION</th>
+              </tr>
+            </thead>
+            <tbody id="estimateBody">
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+    <!-- RIGHT -->
+    <aside class="right-column">
+      <section class="summary-card">
+        <h2>▧ CALCULATION SUMMARY</h2>
+        <div class="summary-row">
+          <span>Calculation Basis</span>
+          <strong id="calculationBasis">
+            Select unit
+          </strong>
+        </div>
+        <div class="summary-row">
+          <span>Rounding</span>
+          <strong>Nearest 76.2 mm (3 inch)</strong>
+        </div>
+        <div class="summary-row">
+          <span>1 Foot</span>
+          <strong>304.8 mm</strong>
+        </div>
+        <div class="summary-row">
+          <span>1 Sqft</span>
+          <strong>92,903.04 mm²</strong>
+        </div>
+        <div class="summary-row">
+          <span>GST for Karnataka</span>
+          <strong>CGST 9% + SGST 9%</strong>
+        </div>
+        <div class="summary-row">
+          <span>Other States</span>
+          <strong>IGST 18%</strong>
+        </div>
+      </section>
+      <section class="summary-card estimate-summary">
+        <h2>▣ ESTIMATE SUMMARY</h2>
+        <div class="summary-row">
+          <span>Subtotal</span>
+          <strong id="subtotal">
+            ₹0.00
+          </strong>
+        </div>
+        <div class="summary-row">
+          <span id="gst1Label">CGST (9%)</span>
+          <strong id="gst1">
+            ₹0.00
+          </strong>
+        </div>
+        <div class="summary-row">
+          <span id="gst2Label">SGST (9%)</span>
+          <strong id="gst2">
+            ₹0.00
+          </strong>
+        </div>
+        <div class="grand-total">
+          <span>GRAND TOTAL</span>
+          <strong id="grandTotal">
+            ₹0.00
+          </strong>
+        </div>
+        <div class="amount-words">
+          <small>Amount In Words</small>
+          <p id="amountWords">
+            Rupees Zero Only
+          </p>
+        </div>
+      </section>
+    </aside>
+  </div>
+</div>
+<script src="data.js"></script>
+<script src="script.js"></script>
+</body>
+</html>
