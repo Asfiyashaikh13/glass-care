@@ -15,3 +15,7 @@ Sqft amounts use exact dimensions (no 76.2 mm rounding). Each item has an editab
 If you already have a different Ollama model, set `LOCAL_MODEL` in `.env` to its installed name. `ollama list` shows installed models. The 1B model is selected to be lighter on this CPU-only computer; larger models may answer better but will be slower and need more memory.
 
 To stop the web server, press Ctrl+C in its terminal. Ollama may continue running as a background service.
+
+## Deploy for client access
+
+For a public HTTPS deployment, use a Linux VPS running the app and Ollama. Follow the [VPS deployment guide](deploy/README.md). The deployment template keeps Ollama private and enables password protection at the Caddy reverse proxy.

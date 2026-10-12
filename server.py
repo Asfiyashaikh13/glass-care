@@ -203,8 +203,10 @@ class GlassCareHandler(SimpleHTTPRequestHandler):
 if __name__ == "__main__":
     load_dotenv()
     port = int(os.environ.get("PORT", "8000"))
-    server = ThreadingHTTPServer(("127.0.0.1", port), GlassCareHandler)
-    print(f"Glass Care is running at http://127.0.0.1:{port}", flush=True)
+    host = os.environ.get("HOST", "127.0.0.1")
+    server = ThreadingHTTPServer((host, port), GlassCareHandler)
+    display_host = "127.0.0.1" if host in ("0.0.0.0", "::") else host
+    print(f"Glass Care is running at http://{display_host}:{port}", flush=True)
     print("Press Ctrl+C to stop the server.", flush=True)
     try:
         server.serve_forever()
