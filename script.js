@@ -1,6 +1,5 @@
 const MM_PER_FOOT = 304.8;
 const SQFT_MM = 92903.04;
-const ROUNDING_INCREMENT = 76.2;
 const GST_RATE = 0.18;
 
 let estimateItems = [];
@@ -16,6 +15,7 @@ const height = document.getElementById("height");
 const width = document.getElementById("width");
 const quantity = document.getElementById("quantity");
 const rate = document.getElementById("rate");
+const discountPercent = document.getElementById("discountPercent");
 const unitDisplay = document.getElementById("unitDisplay");
 const originalSize = document.getElementById("originalSize");
 const roundedSize = document.getElementById("roundedSize");
@@ -245,6 +245,9 @@ function applyRateBookSuggestion() {
   editRateBtn.style.display = "block";
   saveRateBtn.style.display = "none";
   editRateBtn.textContent = "✏️ Edit";
+  editRateBtn.style.background = "white";
+  editRateBtn.style.color = "#26364d";
+  editRateBtn.style.borderColor = "#cbd5e1";
   updateCalculation();
 }
 
@@ -414,43 +417,35 @@ function generateEstimateNumber() {
   return `GCE-${year}${month}-${random}`;
 }
 
-/* ROUNDING */
-function roundUp(value) {
-  return Math.ceil(value / ROUNDING_INCREMENT) * ROUNDING_INCREMENT;
-}
-
 /* LIVE CALCULATION (based on selected Unit) */
 function getCalculation() {
   const unit = unitDisplay.value;
   const qty = Number(quantity.value) || 1;
   const itemRate = Number(rate.value) || 0;
+  const discount = Math.min(100, Math.max(0, Number(discountPercent.value) || 0));
   const h = Number(height.value) || 0;
   const w = Number(width.value) || 0;
 
-  let roundedHeight = 0;
-  let roundedWidth = 0;
   let area = 0;
   let runningFeet = 0;
-  let amount = 0;
+  let baseAmount = 0;
 
   if (unit === "Sqft") {
     if (h > 0 && w > 0) {
-      roundedHeight = roundUp(h);
-      roundedWidth = roundUp(w);
-      area = (roundedHeight * roundedWidth * qty) / SQFT_MM;
-      amount = area * itemRate;
+      area = (h * w * qty) / SQFT_MM;
+      baseAmount = area * itemRate;
     }
   } else if (unit === "R.ft") {
     runningFeet = ((h + w) * 2 * qty) / MM_PER_FOOT;
-    amount = runningFeet * itemRate;
+    baseAmount = runningFeet * itemRate;
   } else {
-    amount = qty * itemRate;
+    baseAmount = qty * itemRate;
   }
 
-  // Round live calculation amount to paise for display consistency
-  amount = Math.round((amount || 0) * 100) / 100;
+  // Apply the spreadsheet-style percentage discount, then round displayed currency to paise.
+  const amount = Math.round((baseAmount * (1 - discount / 100) || 0) * 100) / 100;
 
-  return { unit, qty, itemRate, h, w, roundedHeight, roundedWidth, area, runningFeet, amount };
+  return { unit, qty, itemRate, discount, h, w, area, runningFeet, amount };
 }
 
 /* UPDATE SCREEN */
@@ -459,21 +454,19 @@ function updateCalculation() {
 
   if (calc.unit === "Sqft") {
     originalSize.textContent = calc.h && calc.w ? `${calc.h} × ${calc.w} mm` : "-- × -- mm";
-    roundedSize.textContent = calc.h && calc.w
-      ? `${calc.roundedHeight.toFixed(1)} × ${calc.roundedWidth.toFixed(1)} mm`
-      : "-- × -- mm";
-    areaDisplay.textContent = `${calc.area.toFixed(2)} Sqft`;
-    calculationBasis.textContent = "Rounded Size (76.2mm)";
+    roundedSize.textContent = calc.h && calc.w ? `${calc.h} × ${calc.w} mm (exact)` : "-- × -- mm";
+    areaDisplay.textContent = `${calc.area.toFixed(3)} Sqft`;
+    calculationBasis.textContent = "Exact Area (Sqft)";
   } else if (calc.unit === "R.ft") {
     originalSize.textContent = calc.h && calc.w ? `${calc.h} × ${calc.w} mm` : "-- × -- mm";
     roundedSize.textContent = `${calc.runningFeet.toFixed(2)} R.ft`;
     areaDisplay.textContent = `${calc.runningFeet.toFixed(2)} R.ft`;
-    calculationBasis.textContent = "Running Feet";
+    calculationBasis.textContent = "Running Feet × Rate, less discount";
   } else {
     originalSize.textContent = "Not required";
     roundedSize.textContent = "Not applicable";
     areaDisplay.textContent = `${calc.qty} ${calc.unit}`;
-    calculationBasis.textContent = "Quantity";
+    calculationBasis.textContent = "Quantity × Rate, less discount";
   }
 
   amountDisplay.textContent = formatMoney(calc.amount);
@@ -495,6 +488,10 @@ document.getElementById("addItem").addEventListener("click", function () {
     alert("Please enter Height and Width for a Sqft item.");
     return;
   }
+  if (calc.unit === "R.ft" && (!calc.h || !calc.w)) {
+    alert("Please enter Height and Width for an R.ft item.");
+    return;
+  }
 
   const item = {
     id: Date.now(),
@@ -506,6 +503,7 @@ document.getElementById("addItem").addEventListener("click", function () {
     width: calc.w,
     quantity: calc.qty,
     rate: calc.itemRate,
+    discountPercent: calc.discount,
     amount: calc.amount
   };
 
@@ -529,6 +527,15 @@ function resetItemForm() {
   width.value = "";
   quantity.value = 1;
   rate.value = 0;
+  discountPercent.value = 10;
+  rate.setAttribute("readonly", "");
+  isRateEditing = false;
+  editRateBtn.style.display = "block";
+  editRateBtn.textContent = "✏️ Edit";
+  editRateBtn.style.background = "white";
+  editRateBtn.style.color = "#26364d";
+  editRateBtn.style.borderColor = "#cbd5e1";
+  saveRateBtn.style.display = "none";
   rateSourceTag.textContent = "";
   updateCalculation();
 }
@@ -539,28 +546,23 @@ function recalcItem(item) {
   const w = Math.max(0, Number(item.width) || 0);
   const qty = Math.max(1, Number(item.quantity) || 1);
   const itemRate = Math.max(0, Number(item.rate) || 0);
+  const discount = Math.min(100, Math.max(0, Number(item.discountPercent ?? 10) || 0));
 
   if (item.unit === "Sqft") {
     if (h > 0 && w > 0) {
-      const roundedHeight = roundUp(h);
-      const roundedWidth = roundUp(w);
-      const area = (roundedHeight * roundedWidth * qty) / SQFT_MM;
+      const area = (h * w * qty) / SQFT_MM;
       item.area = area;
-      item.roundedHeight = roundedHeight;
-      item.roundedWidth = roundedWidth;
-      item.amount = area * itemRate;
+      item.amount = area * itemRate * (1 - discount / 100);
     } else {
       item.area = 0;
-      item.roundedHeight = 0;
-      item.roundedWidth = 0;
       item.amount = 0;
     }
   } else if (item.unit === "R.ft") {
     const runningFeet = ((h + w) * 2 * qty) / MM_PER_FOOT;
     item.runningFeet = runningFeet;
-    item.amount = runningFeet * itemRate;
+    item.amount = runningFeet * itemRate * (1 - discount / 100);
   } else {
-    item.amount = qty * itemRate;
+    item.amount = qty * itemRate * (1 - discount / 100);
   }
 
   // Round item amount to 2 decimals (paise) for stable totals
@@ -574,7 +576,7 @@ function renderEstimate() {
   if (estimateItems.length === 0) {
     estimateBody.innerHTML = `
       <tr>
-        <td colspan="9" style="text-align:center;padding:35px;color:#7b8795;">
+        <td colspan="10" style="text-align:center;padding:35px;color:#7b8795;">
           No items added yet.
         </td>
       </tr>
@@ -630,14 +632,6 @@ function renderEstimate() {
       sizeRow.appendChild(xSpan);
       sizeRow.appendChild(wInput);
       sizeCell.appendChild(sizeRow);
-      if (item.unit === "Sqft") {
-        const note = document.createElement("div");
-        note.className = "rounded-note";
-        note.textContent = item.roundedHeight
-          ? `→ ${item.roundedHeight.toFixed(1)} × ${item.roundedWidth.toFixed(1)} mm`
-          : "";
-        sizeCell.appendChild(note);
-      }
     }
     row.appendChild(sizeCell);
 
@@ -645,7 +639,7 @@ function renderEstimate() {
     const unitCell = document.createElement("td");
     const unitSelect = document.createElement("select");
     unitSelect.className = "cell-edit";
-    ["Sqft", "R.ft", "mm"].forEach(u => {
+    ["Sqft", "R.ft", "Pcs", "Job"].forEach(u => {
       const opt = document.createElement("option");
       opt.value = u;
       opt.textContent = u;
@@ -687,6 +681,24 @@ function renderEstimate() {
     rateCell.appendChild(rateInput);
     row.appendChild(rateCell);
 
+    // Per-item percentage discount
+    const discountCell = document.createElement("td");
+    const discountInput = document.createElement("input");
+    discountInput.type = "number";
+    discountInput.className = "cell-edit";
+    discountInput.min = "0";
+    discountInput.max = "100";
+    discountInput.step = "0.01";
+    discountInput.value = item.discountPercent ?? 10;
+    discountInput.addEventListener("input", () => {
+      item.discountPercent = Math.min(100, Math.max(0, Number(discountInput.value) || 0));
+      recalcItem(item);
+      refreshRowCalcs(row, item);
+      updateTotals();
+    });
+    discountCell.appendChild(discountInput);
+    row.appendChild(discountCell);
+
     // Amount cell (auto-calculated, read-only)
     const amountCell = document.createElement("td");
     amountCell.className = "amount amount-cell";
@@ -720,19 +732,13 @@ function refreshRowCalcs(row, item) {
   const areaCell = row.querySelector(".area-cell");
   const amountCell = row.querySelector(".amount-cell");
   if (item.unit === "Sqft") {
-    areaCell.textContent = `${item.area.toFixed(2)} Sqft`;
+    areaCell.textContent = `${item.area.toFixed(3)} Sqft`;
   } else if (item.unit === "R.ft") {
     areaCell.textContent = `${item.runningFeet.toFixed(2)} R.ft`;
   } else {
     areaCell.textContent = `${item.quantity} ${item.unit}`;
   }
   amountCell.textContent = formatMoney(item.amount);
-  const note = row.querySelector(".rounded-note");
-  if (note && item.unit === "Sqft") {
-    note.textContent = item.roundedHeight
-      ? `→ ${item.roundedHeight.toFixed(1)} × ${item.roundedWidth.toFixed(1)} mm`
-      : "";
-  }
 }
 
 /* DELETE */
@@ -813,7 +819,7 @@ function numberToWords(num) {
 }
 
 /* EVENTS */
-[height, width, quantity, rate, unitDisplay].forEach(el =>
+[height, width, quantity, rate, discountPercent, unitDisplay].forEach(el =>
   el.addEventListener("input", updateCalculation)
 );
 customerState.addEventListener("change", updateTotals);
