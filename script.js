@@ -228,22 +228,32 @@ function applyRateBookSuggestion() {
   if (!categoryValue) {
     rateSourceTag.textContent = "";
     rate.value = 0;
+    rate.setAttribute("readonly", "");
+    isRateEditing = false;
+    editRateBtn.style.display = "block";
+    saveRateBtn.style.display = "none";
+    updateCalculation();
     return;
   }
   const found = findRateForCategory(categoryValue);
   if (found !== undefined) {
     rate.value = found;
+    rate.setAttribute("readonly", "");
+    isRateEditing = false;
+    editRateBtn.style.display = "block";
+    saveRateBtn.style.display = "none";
     rateSourceTag.textContent = "✓ auto-filled from Rate Book";
     rateSourceTag.style.color = "#17733f";
   } else {
-    rate.value = 0;
+    // New categories have no saved rate, so allow direct manual entry.
+    rate.value = "";
+    rate.removeAttribute("readonly");
+    isRateEditing = true;
+    editRateBtn.style.display = "none";
+    saveRateBtn.style.display = "block";
     rateSourceTag.textContent = "⚠ no saved rate — enter manually";
     rateSourceTag.style.color = "#d97706";
   }
-  isRateEditing = false;
-  rate.setAttribute("readonly", "");
-  editRateBtn.style.display = "block";
-  saveRateBtn.style.display = "none";
   editRateBtn.textContent = "✏️ Edit";
   editRateBtn.style.background = "white";
   editRateBtn.style.color = "#26364d";
@@ -278,6 +288,7 @@ editRateBtn.addEventListener("click", () => {
     // Exit edit mode
     rate.setAttribute("readonly", "");
     isRateEditing = false;
+    editRateBtn.style.display = "block";
     editRateBtn.textContent = "✏️ Edit";
     editRateBtn.style.background = "white";
     editRateBtn.style.color = "#26364d";
@@ -298,7 +309,13 @@ saveRateBtn.addEventListener("click", () => {
   rateBook[key] = value;
   saveRateBook(rateBook);
   rateSourceTag.textContent = `✓ saved ₹${value} as default for this category`;
+  rate.setAttribute("readonly", "");
+  isRateEditing = false;
+  editRateBtn.style.display = "block";
+  editRateBtn.textContent = "✏️ Edit";
+  saveRateBtn.style.display = "none";
   renderRateBook();
+  updateCalculation();
 });
 
 toggleRateBook.addEventListener("click", () => {
