@@ -557,8 +557,13 @@ select.cell-edit {
   }
 }
 @media print {
+  @page {
+    margin: 0;
+  }
+
   body {
     background: white;
+    padding: 12mm;
   }
   .header-actions,
   #addItem,
