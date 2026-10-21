@@ -820,6 +820,18 @@ select.cell-edit {
   color: white;
   background: #084a9b;
 }
+.primary-action.bill-action {
+  background: #0d5c3a;
+}
+.primary-action.bill-action:hover {
+  background: #09472c;
+}
+.primary-action.invoice-action {
+  background: #084a9b;
+}
+.primary-action.invoice-action:hover {
+  background: #063875;
+}
 .secondary-action {
   color: #084a9b;
   background: #eaf2fc;
