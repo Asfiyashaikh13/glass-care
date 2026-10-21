@@ -1422,7 +1422,12 @@
       const payableAmount = record.totals?.payable ?? record.totals?.unroundedTotal ?? record.totals?.subtotal ?? 0;
       total.textContent = format(payableAmount);
 
-      info.append(badge, number, customer, date, total);
+      const payBadge = document.createElement("span");
+      const payStatus = record.paymentMode || "Paid";
+      payBadge.className = `payment-badge badge-${payStatus.toLowerCase().replace(/\s+/g, "-")}`;
+      payBadge.textContent = payStatus;
+
+      info.append(badge, number, customer, date, total, payBadge);
 
       const actions = document.createElement("div");
       actions.className = "saved-doc-actions";
@@ -1484,6 +1489,36 @@
         });
         dropdown.append(convertBtn);
       }
+
+      // Change payment status actions
+      const currentPayStatus = record.paymentMode || "Paid";
+      const targetStatuses = ["Paid", "In Progress", "Due"].filter(s => s !== currentPayStatus);
+      targetStatuses.forEach(targetStatus => {
+        const statusBtn = document.createElement("button");
+        statusBtn.type = "button";
+        statusBtn.className = "saved-doc-menu-item";
+        statusBtn.textContent = targetStatus === "Paid" ? "✓ Mark as Paid" : (targetStatus === "Due" ? "Mark as Due" : "Mark as In Progress");
+        statusBtn.addEventListener("click", async () => {
+          closeAllDocMenus();
+          record.paymentMode = targetStatus;
+          if (targetStatus === "Paid") {
+            record.paidAmount = record.totals?.payable ?? record.totals?.subtotal ?? 0;
+          } else if (targetStatus === "Due") {
+            record.paidAmount = 0;
+          }
+          localStorage.setItem(STORAGE.documents, JSON.stringify(documents));
+          if (window.GlassCareStore?.user && window.GlassCareStore?.saveDocument) {
+            try {
+              await window.GlassCareStore.saveDocument(record);
+            } catch (err) {
+              console.warn("Could not update payment status in Supabase:", err);
+            }
+          }
+          renderDocuments();
+          showStatus(`${record.type} ${record.number} marked as ${targetStatus}.`);
+        });
+        dropdown.append(statusBtn);
+      });
 
       const deleteBtn = document.createElement("button");
       deleteBtn.type = "button";

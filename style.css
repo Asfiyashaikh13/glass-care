@@ -1101,6 +1101,31 @@ select.cell-edit {
   color: #17733f;
   border: 1px solid #a7f3d0;
 }
+.payment-badge {
+  display: inline-block;
+  padding: 2px 7px;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 4px;
+  line-height: 1.2;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+.payment-badge.badge-paid {
+  background: #dcfce7;
+  color: #166534;
+  border: 1px solid #86efac;
+}
+.payment-badge.badge-due {
+  background: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #fca5a5;
+}
+.payment-badge.badge-in-progress {
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fde68a;
+}
 .saved-doc-number {
   font-weight: 700;
   color: #0f172a;
