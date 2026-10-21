@@ -18,7 +18,7 @@
     const val = Number(mm) || 0;
     if (val > 7620) {
       const inch = Math.ceil(val / 25.4 / 3 - 0.000001) * 3;
-      return { inch, mm: inch * 25.4 };
+      return { inch, mm: Number((inch * 25.4).toFixed(1)) };
     }
     let chart = typeof SIZE_CHART !== "undefined" ? SIZE_CHART : (typeof globalThis !== "undefined" && globalThis.SIZE_CHART ? globalThis.SIZE_CHART : null);
     if (!chart && typeof require === "function") {
@@ -26,13 +26,14 @@
     }
     if (!chart || !chart.length) {
       const inch = Math.max(3, Math.ceil(val / 25.4 / 3 - 0.000001) * 3);
-      return { inch, mm: inch * 25.4 };
+      return { inch, mm: Number((inch * 25.4).toFixed(1)) };
     }
     if (val < 76.2) {
-      return chart[0];
+      return { inch: chart[0].inch, mm: Number(chart[0].mm.toFixed(1)) };
     }
     const found = chart.find(row => row.mm >= val - 0.05);
-    return found || chart[chart.length - 1];
+    const row = found || chart[chart.length - 1];
+    return { inch: row.inch, mm: Number(row.mm.toFixed(1)) };
   }
 
   function calculateLine(item) {
@@ -67,7 +68,7 @@
       const widthFt = chartW.inch / 12;
       measure = (length <= 0 || width <= 0) ? 0 : heightFt * widthFt * quantity;
       measureLabel = `${measure.toFixed(3)} Sqft`;
-      formula = `${chartH.mm} mm (${chartH.inch} in) ÷ 12 × ${chartW.mm} mm (${chartW.inch} in) ÷ 12 × ${quantity} × ₹${rate}`;
+      formula = `${chartH.mm.toFixed(1)} mm (${chartH.inch} in) ÷ 12 × ${chartW.mm.toFixed(1)} mm (${chartW.inch} in) ÷ 12 × ${quantity} × ₹${rate}`;
     } else if (unit === "R.ft") {
       if (length <= 0 || width <= 0) errors.push("Length and width in mm are required for running feet.");
       measure = 2 * (length + width) * quantity / MM_PER_FOOT;

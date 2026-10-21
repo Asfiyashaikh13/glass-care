@@ -739,7 +739,7 @@ function updateCalculation() {
     if (calc.h && calc.w) {
       const h = calc.chartH || (GlassCareCalculations.chartLookup ? GlassCareCalculations.chartLookup(calc.h) : { inch: Math.round(calc.h / 25.4), mm: calc.h });
       const w = calc.chartW || (GlassCareCalculations.chartLookup ? GlassCareCalculations.chartLookup(calc.w) : { inch: Math.round(calc.w / 25.4), mm: calc.w });
-      roundedSize.textContent = `${h.mm} x ${w.mm} mm (${h.inch} x ${w.inch} in)`;
+      roundedSize.textContent = `${h.mm.toFixed(1)} × ${w.mm.toFixed(1)} mm (${h.inch} × ${w.inch} in)`;
     } else {
       roundedSize.textContent = "-- × -- mm";
     }
@@ -810,7 +810,11 @@ document.getElementById("addItem").addEventListener("click", function () {
     rate: calc.itemRate,
     discountPercent: calc.discount,
     gstRate: calc.gstRate,
-    amount: calc.amount
+    amount: calc.amount,
+    chartH: calc.chartH ? { inch: calc.chartH.inch, mm: Number(calc.chartH.mm.toFixed(1)) } : null,
+    chartW: calc.chartW ? { inch: calc.chartW.inch, mm: Number(calc.chartW.mm.toFixed(1)) } : null,
+    usedHeight: calc.chartH ? Number(calc.chartH.mm.toFixed(1)) : null,
+    usedWidth: calc.chartW ? Number(calc.chartW.mm.toFixed(1)) : null
   };
 
   estimateItems.push(item);
@@ -931,6 +935,16 @@ function renderEstimate() {
         sizeRow.appendChild(depthInput);
       }
       sizeCell.appendChild(sizeRow);
+      if (item.unit === "Sqft") {
+        const h = item.chartH || (GlassCareCalculations.chartLookup ? GlassCareCalculations.chartLookup(item.height) : null);
+        const w = item.chartW || (GlassCareCalculations.chartLookup ? GlassCareCalculations.chartLookup(item.width) : null);
+        if (h && w) {
+          const roundedNote = document.createElement("div");
+          roundedNote.className = "rounded-note";
+          roundedNote.textContent = `${h.mm.toFixed(1)} × ${w.mm.toFixed(1)} mm`;
+          sizeCell.appendChild(roundedNote);
+        }
+      }
     }
     row.appendChild(sizeCell);
 
@@ -1150,6 +1164,16 @@ function refreshRowCalcs(row, item) {
   measureInput.disabled = ["Pcs", "Job"].includes(item.unit);
   if (document.activeElement !== amountInput) amountInput.value = Number(item.taxableAmount || 0);
   if (document.activeElement !== taxAmountInput) taxAmountInput.value = Number(item.taxAmount || 0);
+  const roundedNote = row.querySelector(".rounded-note");
+  if (roundedNote) {
+    if (item.unit === "Sqft") {
+      const h = item.chartH || (GlassCareCalculations.chartLookup ? GlassCareCalculations.chartLookup(item.height) : null);
+      const w = item.chartW || (GlassCareCalculations.chartLookup ? GlassCareCalculations.chartLookup(item.width) : null);
+      roundedNote.textContent = (h && w) ? `${h.mm.toFixed(1)} × ${w.mm.toFixed(1)} mm` : "";
+    } else {
+      roundedNote.textContent = "";
+    }
+  }
   const rowError = row.querySelector(".row-error");
   if (rowError) rowError.textContent = (item.errors || []).join(" ");
 }

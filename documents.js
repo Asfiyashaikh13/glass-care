@@ -304,6 +304,13 @@
 
   function dimensionText(item) {
     if (item.unit === "Pcs" || item.unit === "Job") return "—";
+    if (item.unit === "Sqft") {
+      const h = item.chartH || (GlassCareCalculations?.chartLookup ? GlassCareCalculations.chartLookup(item.height) : null);
+      const w = item.chartW || (GlassCareCalculations?.chartLookup ? GlassCareCalculations.chartLookup(item.width) : null);
+      if (h && w) {
+        return `${h.mm.toFixed(1)} × ${w.mm.toFixed(1)} mm`;
+      }
+    }
     const dims = [item.height, item.width];
     if (item.unit === "Cubic Ft") dims.push(item.thickness);
     return `${dims.map(value => Math.round(value)).join(" × ")} mm`;
