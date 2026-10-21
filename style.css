@@ -300,6 +300,10 @@ select {
 select {
   cursor: pointer;
 }
+select option {
+  color: #0f172a;
+  background: #ffffff;
+}
 input:focus,
 select:focus {
   outline: 2px solid #b8d0ee;
@@ -698,6 +702,10 @@ select.cell-edit {
   }
 }
 @media (max-width: 700px) {
+  input,
+  select {
+    font-size: 16px;
+  }
   .topbar {
     padding: 20px;
   }

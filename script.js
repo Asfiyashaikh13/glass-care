@@ -372,6 +372,8 @@ function renderRateBook() {
 
 /* INITIALIZE DROPDOWNS FROM data.js (real sheet lists) */
 function fillSelect(select, list, insertBeforeCustom) {
+  if (!select) return;
+  if (select.options && select.options.length > 2) return; // already populated from static HTML
   list.forEach(value => {
     const option = document.createElement("option");
     option.value = value;
@@ -1318,12 +1320,22 @@ function numberToWords(num) {
 }
 
 /* EVENTS */
-[height, width, thickness, quantity, rate, discountPercent, gstRateInput, unitDisplay].forEach(el =>
-  el.addEventListener("input", updateCalculation)
-);
-customerState.addEventListener("change", () => { updateTotals(); persistDraft(); });
-document.getElementById("estimateDate").addEventListener("change", persistDraft);
-
+[height, width, thickness, quantity, rate, discountPercent, gstRateInput, unitDisplay].forEach(el => {
+  if (el) el.addEventListener("input", updateCalculation);
+});
+if (customerState) customerState.addEventListener("change", () => { updateTotals(); persistDraft(); });
+document.getElementById("estimateDate")?.addEventListener("change", persistDraft);
 
 /* START */
-initialize();
+let hasInitialized = false;
+function runInitialization() {
+  if (hasInitialized) return;
+  hasInitialized = true;
+  initialize();
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", runInitialization);
+} else {
+  runInitialization();
+}
