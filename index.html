@@ -114,16 +114,23 @@
         id="customerPhone"
         placeholder="Phone Number"
       >
-      <input
-        id="customerGstin"
-        placeholder="Customer GSTIN (e.g. 29ABCDE1234F1Z5)"
-      >
+      <div class="gstin-input-wrap">
+        <input
+          id="customerGstin"
+          placeholder="Customer GSTIN (e.g. 29ABCDE1234F1Z5)"
+          maxlength="15"
+          autocomplete="off"
+          style="text-transform: uppercase;"
+        >
+        <button type="button" id="fetchGstinBtn" title="Auto-fetch customer data from GSTIN" class="fetch-gstin-btn">🔍 Fetch</button>
+      </div>
       <select id="paymentMode" title="Payment Mode / Status">
         <option value="Paid">Payment Status: Paid</option>
         <option value="In Progress">Payment Status: In Progress</option>
         <option value="Due">Payment Status: Due</option>
       </select>
     </div>
+    <div id="gstinStatus" class="gstin-status" style="display:none;" role="status"></div>
   </section>
   <div class="main-layout">
     <!-- LEFT -->

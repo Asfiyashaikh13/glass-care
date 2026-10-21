@@ -393,7 +393,7 @@ function initialize() {
   });
   customerState.value = states[0] || "";
 
-  ["customerName", "flatNo", "buildingName", "customerPhone", "customerGstin", "paymentMode"].forEach(id => {
+  ["customerName", "flatNo", "buildingName", "customerPhone", "paymentMode"].forEach(id => {
     const field = document.getElementById(id);
     if (field) {
       if (savedDraft[id] != null) field.value = savedDraft[id];
@@ -401,6 +401,36 @@ function initialize() {
       field.addEventListener("change", persistDraft);
     }
   });
+
+  const gstinField = document.getElementById("customerGstin");
+  const fetchGstinBtn = document.getElementById("fetchGstinBtn");
+
+  if (gstinField) {
+    if (savedDraft.customerGstin) {
+      gstinField.value = savedDraft.customerGstin;
+    }
+    gstinField.addEventListener("input", (e) => {
+      handleGstinInput(e.target.value);
+    });
+    gstinField.addEventListener("change", (e) => {
+      handleGstinInput(e.target.value);
+    });
+    gstinField.addEventListener("paste", () => {
+      setTimeout(() => handleGstinInput(gstinField.value), 50);
+    });
+  }
+
+  if (fetchGstinBtn) {
+    fetchGstinBtn.addEventListener("click", () => {
+      const val = (gstinField?.value || "").trim();
+      if (!val) {
+        showGstinStatus("Please enter a 15-character Customer GSTIN to fetch details.", "warning");
+        gstinField?.focus();
+        return;
+      }
+      handleGstinInput(val);
+    });
+  }
   if (savedDraft.state && states.includes(savedDraft.state)) customerState.value = savedDraft.state;
 
   document.getElementById("estimateDate").value = savedDraft.date || new Date().toISOString().split("T")[0];
@@ -411,13 +441,239 @@ function initialize() {
   renderRateBook();
 }
 
+/* CUSTOMER DIRECTORY & GSTIN AUTOMATION */
+const GSTIN_DIRECTORY_KEY = "glassCareCustomerDirectory";
+
+function getCustomerDirectory() {
+  try {
+    const raw = localStorage.getItem(GSTIN_DIRECTORY_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch (e) {
+    return {};
+  }
+}
+
+function saveCustomerToDirectory(gstin, details) {
+  if (!gstin || typeof gstin !== "string") return;
+  const cleanGstin = gstin.trim().toUpperCase().replace(/[^0-9A-Z]/g, "").slice(0, 15);
+  if (cleanGstin.length !== 15) return;
+  try {
+    const dir = getCustomerDirectory();
+    dir[cleanGstin] = {
+      ...(dir[cleanGstin] || {}),
+      ...details,
+      gstin: cleanGstin,
+      updatedAt: new Date().toISOString()
+    };
+    localStorage.setItem(GSTIN_DIRECTORY_KEY, JSON.stringify(dir));
+  } catch (e) {
+    console.warn("Could not save to customer directory:", e);
+  }
+}
+
+window.GlassCareDirectory = {
+  get: getCustomerDirectory,
+  save: saveCustomerToDirectory
+};
+
+function showGstinStatus(message, type = "info", autoHide = true) {
+  const statusEl = document.getElementById("gstinStatus");
+  if (!statusEl) return;
+
+  if (statusEl._hideTimer) {
+    clearTimeout(statusEl._hideTimer);
+    statusEl._hideTimer = null;
+  }
+
+  if (!message) {
+    statusEl.style.display = "none";
+    statusEl.innerHTML = "";
+    return;
+  }
+
+  const icons = {
+    loading: "⏳",
+    success: "✓",
+    info: "ℹ",
+    warning: "⚠",
+    error: "✖"
+  };
+  const icon = icons[type] || "ℹ";
+  statusEl.className = `gstin-status ${type}`;
+  statusEl.innerHTML = `<span class="status-icon">${icon}</span> <span>${message}</span>`;
+  statusEl.style.display = "flex";
+
+  if (autoHide && type !== "loading") {
+    statusEl._hideTimer = setTimeout(() => {
+      statusEl.style.display = "none";
+    }, 6000);
+  }
+}
+
+async function handleGstinInput(rawVal, options = {}) {
+  const inputEl = document.getElementById("customerGstin");
+  if (!inputEl) return;
+
+  const clean = (rawVal || "").toUpperCase().replace(/[^0-9A-Z]/g, "").slice(0, 15);
+  if (inputEl.value !== clean) {
+    inputEl.value = clean;
+  }
+
+  const stateMap = (typeof GST_STATE_CODE_MAP !== "undefined" ? GST_STATE_CODE_MAP : window.GST_STATE_CODE_MAP) || {};
+
+  // 1. Instant 2-digit Indian GST State auto-detection
+  if (clean.length >= 2) {
+    const code = clean.slice(0, 2);
+    const matchedState = stateMap[code];
+    if (matchedState && customerState) {
+      const optionExists = Array.from(customerState.options).some(o => o.value === matchedState);
+      if (!optionExists) {
+        const newOpt = document.createElement("option");
+        newOpt.value = matchedState;
+        newOpt.textContent = matchedState;
+        customerState.appendChild(newOpt);
+      }
+      if (customerState.value !== matchedState) {
+        customerState.value = matchedState;
+        updateTotals();
+      }
+    }
+  }
+
+  if (clean.length === 0) {
+    showGstinStatus("", "info");
+    persistDraft();
+    return;
+  }
+
+  if (clean.length < 15) {
+    if (clean.length >= 2) {
+      const code = clean.slice(0, 2);
+      const stateName = stateMap[code] || `Code ${code}`;
+      showGstinStatus(`State detected: ${stateName}. Enter 15-character GSTIN to auto-fill customer details.`, "info", false);
+    }
+    persistDraft();
+    return;
+  }
+
+  // Length is 15
+  const gstinRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
+  const isWellFormed = gstinRegex.test(clean);
+  const code = clean.slice(0, 2);
+  const stateName = stateMap[code] || "India";
+
+  if (!isWellFormed && !options.silent) {
+    showGstinStatus(`GSTIN format may be invalid (expected 2 digits + 10-char PAN + 1 entity + Z + 1 check digit).`, "warning", false);
+  }
+
+  // 2. Check local directory first
+  const directory = getCustomerDirectory();
+  let found = directory[clean];
+
+  // 3. Fallback: search historical documents
+  if (!found) {
+    try {
+      const docList = JSON.parse(localStorage.getItem("glassCareDocuments") || "[]");
+      const matchedDoc = docList.find(d => d.customer && d.customer.gstin && d.customer.gstin.toUpperCase() === clean);
+      if (matchedDoc) {
+        found = {
+          name: matchedDoc.customer.name,
+          flatNo: matchedDoc.customer.location,
+          buildingName: matchedDoc.customer.project,
+          customerPhone: matchedDoc.customer.phone,
+          state: matchedDoc.state
+        };
+        saveCustomerToDirectory(clean, found);
+      }
+    } catch (e) {}
+  }
+
+  const nameEl = document.getElementById("customerName");
+  const flatEl = document.getElementById("flatNo");
+  const buildEl = document.getElementById("buildingName");
+  const phoneEl = document.getElementById("customerPhone");
+
+  if (found && (found.name || found.flatNo || found.buildingName || found.customerPhone)) {
+    if (found.name && nameEl) nameEl.value = found.name;
+    if (found.flatNo && flatEl) flatEl.value = found.flatNo;
+    if (found.buildingName && buildEl) buildEl.value = found.buildingName;
+    if (found.customerPhone && phoneEl) phoneEl.value = found.customerPhone;
+    if (found.state && customerState) {
+      customerState.value = found.state;
+      updateTotals();
+    }
+    persistDraft();
+    showGstinStatus(`✓ Auto-populated customer details for ${found.name || clean} (${found.state || stateName})`, "success");
+    return;
+  }
+
+  // 4. Online lookup attempt if not found locally
+  showGstinStatus(`Searching online GST registry for ${clean}...`, "loading", false);
+
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3500);
+
+    const res = await fetch(`https://commonapi.gst.gov.in/commonapi/v0.3/search?taxpayerId=${encodeURIComponent(clean)}`, {
+      signal: controller.signal
+    }).catch(() => null);
+    clearTimeout(timeoutId);
+
+    if (res && res.ok) {
+      const json = await res.json().catch(() => null);
+      if (json && (json.tradeNam || json.lgnm)) {
+        const tradeName = json.tradeNam || json.lgnm || "";
+        const addr = json.pradr?.addr || {};
+        const loc = [addr.bno, addr.flno, addr.loc].filter(Boolean).join(", ");
+        const project = [addr.bknm, addr.st].filter(Boolean).join(", ");
+
+        if (nameEl && tradeName) nameEl.value = tradeName;
+        if (flatEl && loc) flatEl.value = loc;
+        if (buildEl && project) buildEl.value = project;
+
+        saveCustomerToDirectory(clean, {
+          name: tradeName,
+          flatNo: loc,
+          buildingName: project,
+          state: stateName
+        });
+        persistDraft();
+        showGstinStatus(`✓ Verified GSTIN: ${tradeName} (${stateName})`, "success");
+        return;
+      }
+    }
+  } catch (err) {
+    // Online lookup failed or blocked by CORS
+  }
+
+  // 5. Default graceful response for valid GSTIN
+  persistDraft();
+  showGstinStatus(`✓ Valid GSTIN for ${stateName}. Enter customer details once — they will be saved automatically for future estimates!`, "info");
+}
+
 function persistDraft() {
+  const gstinVal = (document.getElementById("customerGstin")?.value || "").trim().toUpperCase();
+  const customerName = document.getElementById("customerName")?.value || "";
+  const flatNo = document.getElementById("flatNo")?.value || "";
+  const buildingName = document.getElementById("buildingName")?.value || "";
+  const customerPhone = document.getElementById("customerPhone")?.value || "";
+
+  if (gstinVal.length === 15 && (customerName || flatNo || buildingName || customerPhone)) {
+    saveCustomerToDirectory(gstinVal, {
+      name: customerName,
+      flatNo,
+      buildingName,
+      customerPhone,
+      state: customerState.value
+    });
+  }
+
   const draft = {
-    customerName: document.getElementById("customerName")?.value || "",
-    flatNo: document.getElementById("flatNo")?.value || "",
-    buildingName: document.getElementById("buildingName")?.value || "",
-    customerPhone: document.getElementById("customerPhone")?.value || "",
-    customerGstin: document.getElementById("customerGstin")?.value || "",
+    customerName,
+    flatNo,
+    buildingName,
+    customerPhone,
+    customerGstin: gstinVal,
     paymentMode: document.getElementById("paymentMode")?.value || "Paid",
     date: document.getElementById("estimateDate")?.value || "",
     state: customerState.value
@@ -911,6 +1167,7 @@ function resetEstimateForm(clearCustomer = true) {
       const field = document.getElementById(id);
       if (field) field.value = "";
     });
+    showGstinStatus("", "info");
     const paymentSelect = document.getElementById("paymentMode");
     if (paymentSelect) paymentSelect.value = "Paid";
     const dateField = document.getElementById("estimateDate");

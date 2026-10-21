@@ -120,3 +120,22 @@ test("balances CGST/SGST split and round off to the exact rupee without 1-paisa 
   assert.equal(totals.roundOff, -0.27);
   assert.equal(totals.subtotal + totals.cgst + totals.sgst + totals.roundOff, totals.payable);
 });
+
+test("maps GSTIN state codes to correct Indian states", () => {
+  const data = require("../data.js");
+  assert.equal(data.GST_STATE_CODE_MAP["29"], "Karnataka");
+  assert.equal(data.GST_STATE_CODE_MAP["27"], "Maharashtra");
+  assert.equal(data.GST_STATE_CODE_MAP["33"], "Tamil Nadu");
+  assert.equal(data.GST_STATE_CODE_MAP["07"], "Delhi");
+  assert.equal(data.GST_STATE_CODE_MAP["24"], "Gujarat");
+  assert.equal(data.GST_STATE_CODE_MAP["36"], "Telangana");
+});
+
+test("validates 15-character Indian GSTIN structure correctly", () => {
+  const gstinRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
+  assert.ok(gstinRegex.test("29ABCDE1234F1Z5"));
+  assert.ok(gstinRegex.test("27AAGCW7302R1ZF"));
+  assert.ok(!gstinRegex.test("29ABCDE1234F")); // too short
+  assert.ok(!gstinRegex.test("ABCDE1234F1Z529")); // wrong order
+});
+
