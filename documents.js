@@ -126,6 +126,8 @@
   }
 
   function collectDetails() {
+    const itemsList = (window.GlassCareEstimate && window.GlassCareEstimate.items) ||
+      (typeof estimateItems !== "undefined" ? estimateItems : []);
     return {
       customerName: (document.getElementById("customerName")?.value || "").trim(),
       flatNo: (document.getElementById("flatNo")?.value || "").trim(),
@@ -135,7 +137,7 @@
       paymentMode: document.getElementById("paymentMode")?.value || "Paid",
       date: document.getElementById("estimateDate")?.value || new Date().toISOString().slice(0, 10),
       state: document.getElementById("customerState")?.value || "Karnataka",
-      items: estimateItems.map(item => ({
+      items: itemsList.map(item => ({
         id: item.id,
         category: item.category,
         itemName: item.itemName,
@@ -170,23 +172,26 @@
   function nextLocalNumber(type) {
     const countersKey = "glassCareDocumentCounters";
     let counters = readJson(countersKey, {});
-    const countType = type === "Invoice" ? "Inv" : type;
+    const countType = type;
     if (!counters[countType]) {
       const sequence = countType === "Calculation" ? "calculationNumber" : "number";
       counters[countType] = documents.reduce((maximum, record) => {
         const value = String(record[sequence] || record.number || "");
         let pattern;
         if (countType === "Bill") pattern = /GCE-Bill-(\d+)$/i;
-        else if (countType === "Inv") pattern = /GCE-(?:Inv|Invoice)-(\d+)$/i;
-        else if (countType === "Estimate") pattern = /GCE-Est-(\d+)$/i;
+        else if (countType === "Invoice") pattern = /GCE-(?:Inv|Invoice)-(\d+)$/i;
+        else if (countType === "Estimate") pattern = /GCE-Est(?:imate)?-(\d+)$/i;
         else pattern = /GCE-(?:Calc|Calculation)-(\d+)$/i;
         const match = value.match(pattern) || value.match(/-(\d+)$/);
-        return match ? Math.max(maximum, Number(match[1])) : maximum;
+        return match && (countType === "Calculation" || record.type === countType)
+          ? Math.max(maximum, Number(match[1]))
+          : maximum;
       }, 0);
     }
     counters[countType] += 1;
     localStorage.setItem(countersKey, JSON.stringify(counters));
-    return `GCE-${countType}-${String(counters[countType]).padStart(3, "0")}`;
+    const prefix = countType === "Invoice" ? "GCE-Invoice" : (countType === "Bill" ? "GCE-Bill" : (countType === "Estimate" ? "GCE-Estimate" : "GCE-Calculation"));
+    return `${prefix}-${String(counters[countType]).padStart(3, "0")}`;
   }
 
   async function createRecord(type, data, sourceId = null) {
@@ -199,27 +204,20 @@
     const totals = GlassCareCalculations.calculateTotals(data.items, data.state);
     let number;
     let calculationNumber = null;
-    const numberType = type === "Invoice" ? "Inv" : type;
 
     // Resilient number reservation: try Supabase first if signed in, fallback seamlessly to local
     try {
       if (window.GlassCareStore?.user && window.GlassCareStore?.nextNumber) {
-        number = await GlassCareStore.nextNumber(numberType);
+        number = await GlassCareStore.nextNumber(type);
         if (notesToggle?.checked) calculationNumber = await GlassCareStore.nextNumber("Calculation");
       } else {
-        number = nextLocalNumber(numberType);
+        number = nextLocalNumber(type);
         if (notesToggle?.checked) calculationNumber = nextLocalNumber("Calculation");
       }
     } catch (e) {
       console.warn("Could not reserve Supabase sequential number, using local:", e);
-      number = nextLocalNumber(numberType);
+      number = nextLocalNumber(type);
       if (notesToggle?.checked) calculationNumber = nextLocalNumber("Calculation");
-    }
-
-    if (number && (type === "Invoice" || numberType === "Inv")) {
-      number = number.replace(/^GCE-(?:Bill|Invoice)-/i, "GCE-Inv-");
-    } else if (number && type === "Bill") {
-      number = number.replace(/^GCE-(?:Inv|Invoice)-/i, "GCE-Bill-");
     }
 
     const record = {
@@ -1164,46 +1162,45 @@
   }
 
   async function generate(type, data = collectDetails(), sourceId = null) {
-    // Open pending popup if desktop browser allows; regardless, modal preview will guarantee viewing
-    const popup = openPendingPdfWindow();
-    showStatus(`Preparing ${type}…`);
-
+    let popup = null;
     try {
-      await window.GlassCareStore?.ready?.();
-    } catch (e) {
-      // ignore ready failure
-    }
+      // Open pending popup if desktop browser allows; regardless, modal preview will guarantee viewing
+      popup = openPendingPdfWindow();
+      showStatus(`Preparing ${type}…`);
 
-    const savedRecord = await createRecord(type, data, sourceId);
-    if (!savedRecord) {
-      if (popup && !popup.closed) popup.close();
-      return;
-    }
-
-    // Render into both modal and new tab/window
-    openPdf(savedRecord, false, false, popup);
-    showStatus(`${type} ${savedRecord.number} is ready. View on screen or choose “Print / Save as PDF”.`);
-
-    // Once an invoice/bill is successfully saved, clear the active estimate form for the next customer
-    if (type === "Bill" || type === "Invoice") {
       try {
-        localStorage.removeItem("glassCareEstimate");
-        localStorage.removeItem("glassCareDraft");
-      } catch (e) {}
-      window.GlassCareEstimate?.reset?.(true);
-    }
+        await window.GlassCareStore?.ready?.();
+      } catch (e) {
+        // ignore ready failure
+      }
 
-    if (savedRecord.notesEnabled && popup && !popup.closed) {
-      popup.addEventListener("afterprint", () => {
-        if (!popup.closed) {
-          try {
-            const notesHtml = documentHtml(savedRecord, true, false);
-            popup.document.open();
-            popup.document.write(notesHtml);
-            popup.document.close();
-          } catch (e) {}
-        }
-      }, { once: true });
+      const savedRecord = await createRecord(type, data, sourceId);
+      if (!savedRecord) {
+        if (popup && !popup.closed) popup.close();
+        return;
+      }
+
+      // Render into both modal and new tab/window
+      openPdf(savedRecord, false, false, popup);
+      showStatus(`${type} ${savedRecord.number} is ready. View on screen or choose “Print / Save as PDF”.`);
+
+      if (savedRecord.notesEnabled && popup && !popup.closed) {
+        popup.addEventListener("afterprint", () => {
+          if (!popup.closed) {
+            try {
+              const notesHtml = documentHtml(savedRecord, true, false);
+              popup.document.open();
+              popup.document.write(notesHtml);
+              popup.document.close();
+            } catch (e) {}
+          }
+        }, { once: true });
+      }
+    } catch (err) {
+      console.error("Document generation failed:", err);
+      if (popup && !popup.closed) popup.close();
+      showStatus(`Could not generate ${type}: ${err.message}`, true);
+      alert(`Could not generate ${type}: ${err.message}`);
     }
   }
 
@@ -1214,7 +1211,6 @@
       return;
     }
     if (!confirm(`Create a Tax Invoice from ${source.number}? The source document will remain unchanged.`)) return;
-    const popup = openPendingPdfWindow();
     const data = {
       customerName: source.customer.name,
       flatNo: source.customer.location,
@@ -1226,13 +1222,7 @@
       state: source.state,
       items: source.items.map(item => ({ ...item }))
     };
-    const record = await createRecord("Invoice", data, source.id);
-    if (!record) {
-      if (popup && !popup.closed) popup.close();
-      return;
-    }
-    openPdf(record, false, false, popup);
-    showStatus(`Invoice ${record.number} created from ${source.number}. The original is unchanged.`);
+    await generate("Invoice", data, source.id);
   }
 
   let currentFilter = "all";
