@@ -266,6 +266,7 @@
         gstin: data.customerGstin || ""
       },
       paymentMode: data.paymentMode || "Paid",
+      ...(data.paidAmount != null && Number.isFinite(Number(data.paidAmount)) ? { paidAmount: Number(data.paidAmount) } : {}),
       items: data.items,
       totals,
       termsIncluded: type !== "Estimate" && (termsToggle?.checked ?? true),
@@ -302,6 +303,22 @@
     return record;
   }
 
+  function formatMm(value) {
+    const num = Number(value);
+    if (!Number.isFinite(num)) return "0";
+    return num % 1 === 0 ? num.toString() : num.toFixed(1);
+  }
+
+  function getSqftChartSizes(line) {
+    if (line.unit !== "Sqft") return null;
+    const h = line.chartH || (line.height && typeof GlassCareCalculations?.chartLookup === "function" ? GlassCareCalculations.chartLookup(line.height) : null);
+    const w = line.chartW || (line.width && typeof GlassCareCalculations?.chartLookup === "function" ? GlassCareCalculations.chartLookup(line.width) : null);
+    if (h && w && typeof h.inch === "number" && typeof w.inch === "number" && typeof h.mm === "number" && typeof w.mm === "number") {
+      return { h, w };
+    }
+    return null;
+  }
+
   function dimensionText(item) {
     if (item.unit === "Pcs" || item.unit === "Job") return "—";
     if (item.unit === "Sqft") {
@@ -329,6 +346,10 @@
       ? record.totals
       : GlassCareCalculations.calculateTotals(record.items, record.state);
     const customer = record.customer || {};
+    const paidAmount = Number.isFinite(Number(record.paidAmount))
+      ? Number(record.paidAmount)
+      : (Number.isFinite(Number(record.paymentMade)) ? Number(record.paymentMade) : 0);
+    const balanceDue = Math.max(0, totals.payable - paidAmount);
 
     let docTitle = "TAX INVOICE";
     if (isNotes) docTitle = "CALCULATION NOTES";
@@ -344,15 +365,34 @@
       const descriptionTitle = [line.category, line.itemName].filter(Boolean).join(" — ");
       const dims = dimensionText(line);
       const hsn = defaultHsn(line);
+      const sqftSizes = getSqftChartSizes(line);
 
       let dimsBlock = "";
-      if (line.unit !== "Pcs" && line.unit !== "Job") {
+      if (sqftSizes) {
+        const origH = formatMm(line.height);
+        const origW = formatMm(line.width);
+        const billedH = Number(sqftSizes.h.mm).toFixed(1);
+        const billedW = Number(sqftSizes.w.mm).toFixed(1);
+        dimsBlock = `<div class="size-line">Original size: ${origH} × ${origW} mm</div><div class="size-line">Billed size: ${billedH} × ${billedW} mm (${sqftSizes.h.inch} × ${sqftSizes.w.inch} in)</div>`;
+      } else if (line.unit !== "Pcs" && line.unit !== "Job") {
         dimsBlock = `<div class="item-dims">Size in mm - ${escapeHtml(dims)}${line.quantity > 1 ? ` × ${line.quantity} nos` : ""}</div>`;
       }
-      let measureNote = `<div class="item-measure">Measure: ${escapeHtml(line.measureLabel)}</div>`;
+
+      const pcsNote = (line.unit === "Sqft" && line.quantity > 1)
+        ? `<div class="item-pcs">Pcs: ${line.quantity}</div>`
+        : "";
+
+      let measureNote = "";
+      if (line.unit !== "Sqft") {
+        measureNote = `<div class="item-measure">Measure: ${escapeHtml(line.measureLabel)}</div>`;
+      }
       if (line.discountPercent > 0) {
         measureNote += `<div class="item-discount-note">Gross: ₹${formatRawNumber(line.grossAmount)} (${line.discountPercent}% off)</div>`;
       }
+
+      const qtyDisplay = line.unit === "Sqft"
+        ? `${formatRawNumber(line.measure, 3)} <span class="unit-label">Sqft</span>`
+        : `${formatRawNumber(line.quantity, line.unit === "Pcs" ? 0 : 2)} <span class="unit-label">${escapeHtml(line.unit)}</span>`;
 
       if (isKarnataka) {
         const halfRate = (line.gstRate / 2).toFixed(1).replace(/\.0$/, "");
@@ -362,10 +402,11 @@
           <td class="item-desc-cell">
             <div class="item-title">${escapeHtml(descriptionTitle)}</div>
             ${dimsBlock}
+            ${pcsNote}
             ${measureNote}
           </td>
           <td class="text-center hsn-cell">${escapeHtml(hsn)}</td>
-          <td class="text-right qty-cell">${formatRawNumber(line.quantity, line.unit === "Pcs" ? 0 : 2)} <span class="unit-label">${escapeHtml(line.unit)}</span></td>
+          <td class="text-right qty-cell">${qtyDisplay}</td>
           <td class="text-right">${formatRawNumber(line.rate, 2)}</td>
           <td class="text-center">${halfRate}%</td>
           <td class="text-right">${halfTax}</td>
@@ -381,10 +422,11 @@
           <td class="item-desc-cell">
             <div class="item-title">${escapeHtml(descriptionTitle)}</div>
             ${dimsBlock}
+            ${pcsNote}
             ${measureNote}
           </td>
           <td class="text-center hsn-cell">${escapeHtml(hsn)}</td>
-          <td class="text-right qty-cell">${formatRawNumber(line.quantity, line.unit === "Pcs" ? 0 : 2)} <span class="unit-label">${escapeHtml(line.unit)}</span></td>
+          <td class="text-right qty-cell">${qtyDisplay}</td>
           <td class="text-right">${formatRawNumber(line.rate, 2)}</td>
           <td class="text-center">${igstRate}%</td>
           <td class="text-right">${igstTax}</td>
@@ -397,18 +439,42 @@
     const billTableRows = totals.lines.map((line, index) => {
       const descriptionTitle = [line.category, line.itemName].filter(Boolean).join(" — ");
       const dims = dimensionText(line);
-      let measureNote = `<div class="item-measure">Measure: ${escapeHtml(line.measureLabel)}</div>`;
+      const sqftSizes = getSqftChartSizes(line);
+
+      const pcsNote = (line.unit === "Sqft" && line.quantity > 1)
+        ? `<div class="item-pcs">Pcs: ${line.quantity}</div>`
+        : "";
+
+      let measureNote = "";
+      if (line.unit !== "Sqft") {
+        measureNote = `<div class="item-measure">Measure: ${escapeHtml(line.measureLabel)}</div>`;
+      }
       if (line.discountPercent > 0) {
         measureNote += `<div class="item-discount-note">Gross: ₹${formatRawNumber(line.grossAmount)} (${line.discountPercent}% off)</div>`;
       }
+
+      let sizeContent = escapeHtml(dims);
+      if (sqftSizes) {
+        const origH = formatMm(line.height);
+        const origW = formatMm(line.width);
+        const billedH = Number(sqftSizes.h.mm).toFixed(1);
+        const billedW = Number(sqftSizes.w.mm).toFixed(1);
+        sizeContent = `<div class="size-line">Original size: ${origH} × ${origW} mm</div><div class="size-line">Billed size: ${billedH} × ${billedW} mm (${sqftSizes.h.inch} × ${sqftSizes.w.inch} in)</div>`;
+      }
+
+      const qtyDisplay = line.unit === "Sqft"
+        ? `${formatRawNumber(line.measure, 3)} <span class="unit-label">Sqft</span>`
+        : `${formatRawNumber(line.quantity, line.unit === "Pcs" ? 0 : 2)} <span class="unit-label">${escapeHtml(line.unit)}</span>`;
+
       return `<tr>
         <td class="text-center">${index + 1}</td>
         <td class="item-desc-cell">
           <div class="item-title">${escapeHtml(descriptionTitle)}</div>
+          ${pcsNote}
           ${measureNote}
         </td>
-        <td class="text-center">${escapeHtml(dims)}</td>
-        <td class="text-right qty-cell">${formatRawNumber(line.quantity, line.unit === "Pcs" ? 0 : 2)} <span class="unit-label">${escapeHtml(line.unit)}</span></td>
+        <td class="text-center">${sizeContent}</td>
+        <td class="text-right qty-cell">${qtyDisplay}</td>
         <td class="text-right">₹${formatRawNumber(line.rate, 2)}</td>
         <td class="text-right text-bold">₹${formatRawNumber(line.taxableAmount, 2)}</td>
       </tr>`;
@@ -706,6 +772,18 @@
       font-weight: 600;
       margin-top: 2px;
     }
+    .size-line {
+      color: #334155;
+      font-size: 8pt;
+      line-height: 1.35;
+      font-weight: 500;
+    }
+    .item-pcs {
+      color: #475569;
+      font-size: 8.5pt;
+      font-weight: 600;
+      margin-top: 1px;
+    }
     .item-measure {
       color: #475569;
       font-size: 8.5pt;
@@ -991,7 +1069,7 @@
           <tr><td>Terms</td><td>: Due on Receipt</td></tr>
           <tr><td>Due Date</td><td>: ${dateLabel(record.date)}</td></tr>
           <tr><td>Place Of Supply</td><td>: ${placeOfSupply}</td></tr>
-          ${record.paymentMode ? `<tr><td>Payment Mode</td><td>: ${escapeHtml(record.paymentMode)}</td></tr>` : ""}
+          ${record.paymentMode ? `<tr><td>Payment Status</td><td>: ${escapeHtml(record.paymentMode)}</td></tr>` : ""}
           ${record.sourceNumber ? `<tr><td>Ref Document</td><td>: ${escapeHtml(record.sourceNumber)}</td></tr>` : ""}
         </table>
       </div>
@@ -1014,7 +1092,7 @@
           <tr>
             <th style="width: 32px;">#</th>
             <th>Item Description</th>
-            <th style="width: 140px;">Size / Dimensions</th>
+            <th style="width: 175px;">Size / Dimensions</th>
             <th style="width: 80px;">Qty</th>
             <th style="width: 80px;">Rate</th>
             <th style="width: 100px;">Amount</th>
@@ -1092,19 +1170,11 @@
           </tr>
           <tr>
             <td class="text-left">Payment Made</td>
-            <td class="text-right">${
-              record.paymentMode === "Paid"
-                ? `(-) ₹${formatRawNumber(totals.payable, 2)}`
-                : (record.paymentMode === "In Progress" ? "In Progress" : "₹0.00")
-            }</td>
+            <td class="text-right">₹${formatRawNumber(paidAmount, 2)}</td>
           </tr>
           <tr class="balance-due-row">
             <td class="text-left">Balance Due</td>
-            <td class="text-right">${
-              record.paymentMode === "Paid"
-                ? "₹0.00"
-                : (record.paymentMode === "In Progress" ? "Pending" : `₹${formatRawNumber(totals.payable, 2)}`)
-            }</td>
+            <td class="text-right">₹${formatRawNumber(balanceDue, 2)}</td>
           </tr>
         </table>
       </div>
@@ -1588,4 +1658,6 @@
   } else {
     renderDocuments();
   }
+
+  window.GlassCareDocuments = { documentHtml };
 })();
