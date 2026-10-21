@@ -277,7 +277,7 @@
           </div>
         </div>
         <div class="formula">
-          ⓘ Sqft amount: exact Height × Width × Qty ÷ 92,903.04 × Rate × (1 − Discount% ÷ 100). R.ft uses Perimeter × Qty ÷ 304.8 × Rate, then discount. Pcs/Job uses Qty × Rate, then discount. Discount is editable per item and applied before GST.
+          ⓘ Sqft: each side is taken from the client size chart (next 3-inch step), converted to feet (inches / 12), then Area = Height ft x Width ft x Qty, Amount = Area x Rate x (1 - Discount%/100). R.ft and Pcs/Job are unchanged.
         </div>
         <div class="add-action">
           <span id="calculationHint" role="status" aria-live="polite">
@@ -406,6 +406,7 @@
 <script src="supabase-config.js?v=document-system-4"></script>
 <script src="supabase-store.js?v=document-system-4"></script>
 <script src="data.js?v=document-system-4"></script>
+<script src="size-chart.js"></script>
 <script src="calculations.js?v=document-system-4"></script>
 <script src="script.js?v=document-system-4"></script>
 <script src="documents.js?v=document-system-4"></script>

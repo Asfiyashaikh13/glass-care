@@ -14,6 +14,27 @@
     return Number.isFinite(number) ? number : fallback;
   }
 
+  function chartLookup(mm) {
+    const val = Number(mm) || 0;
+    if (val > 7620) {
+      const inch = Math.ceil(val / 25.4 / 3 - 0.000001) * 3;
+      return { inch, mm: inch * 25.4 };
+    }
+    let chart = typeof SIZE_CHART !== "undefined" ? SIZE_CHART : (typeof globalThis !== "undefined" && globalThis.SIZE_CHART ? globalThis.SIZE_CHART : null);
+    if (!chart && typeof require === "function") {
+      try { chart = require("./size-chart.js").SIZE_CHART; } catch (e) {}
+    }
+    if (!chart || !chart.length) {
+      const inch = Math.max(3, Math.ceil(val / 25.4 / 3 - 0.000001) * 3);
+      return { inch, mm: inch * 25.4 };
+    }
+    if (val < 76.2) {
+      return chart[0];
+    }
+    const found = chart.find(row => row.mm >= val - 0.05);
+    return found || chart[chart.length - 1];
+  }
+
   function calculateLine(item) {
     const unit = item.unit || "Sqft";
     const length = finiteNumber(item.height);
@@ -35,11 +56,18 @@
     let measure = quantity;
     let measureLabel = `${quantity} ${unit}`;
     let formula = "Quantity × rate";
+    let chartH = null;
+    let chartW = null;
+
     if (unit === "Sqft") {
       if (length <= 0 || width <= 0) errors.push("Length and width in mm are required for Sqft.");
-      measure = length * width * quantity / SQFT_MM;
+      chartH = chartLookup(length);
+      chartW = chartLookup(width);
+      const heightFt = chartH.inch / 12;
+      const widthFt = chartW.inch / 12;
+      measure = (length <= 0 || width <= 0) ? 0 : heightFt * widthFt * quantity;
       measureLabel = `${measure.toFixed(3)} Sqft`;
-      formula = `${length} mm × ${width} mm × ${quantity} ÷ ${SQFT_MM} × ₹${rate}`;
+      formula = `${chartH.mm} mm (${chartH.inch} in) ÷ 12 × ${chartW.mm} mm (${chartW.inch} in) ÷ 12 × ${quantity} × ₹${rate}`;
     } else if (unit === "R.ft") {
       if (length <= 0 || width <= 0) errors.push("Length and width in mm are required for running feet.");
       measure = 2 * (length + width) * quantity / MM_PER_FOOT;
@@ -99,6 +127,8 @@
       height: length,
       width,
       thickness,
+      chartH,
+      chartW,
       gstRate: effectiveGstRate,
       measure,
       measureLabel,
@@ -186,5 +216,64 @@
     return `₹${formatted}`;
   }
 
-  return { MM_PER_FOOT, SQFT_MM, CUBIC_FOOT_MM, calculateLine, calculateTotals, formatMoney };
+  // Console-only self-test for Sqft size chart integration
+  try {
+    const selfTestCases = [
+      {
+        desc: "1800 x 1200 mm -> 72 x 48 in -> 24.000 Sqft",
+        run: () => {
+          const h = chartLookup(1800), w = chartLookup(1200);
+          const sqft = (h.inch / 12) * (w.inch / 12);
+          return h.inch === 72 && w.inch === 48 && sqft.toFixed(3) === "24.000";
+        }
+      },
+      {
+        desc: "1200 x 1000 mm -> 48 x 42 in -> 14.000 Sqft",
+        run: () => {
+          const h = chartLookup(1200), w = chartLookup(1000);
+          const sqft = (h.inch / 12) * (w.inch / 12);
+          return h.inch === 48 && w.inch === 42 && sqft.toFixed(3) === "14.000";
+        }
+      },
+      {
+        desc: "2000 x 916 mm -> 81 x 39 in -> 21.938 Sqft",
+        run: () => {
+          const h = chartLookup(2000), w = chartLookup(916);
+          const sqft = (h.inch / 12) * (w.inch / 12);
+          return h.inch === 81 && w.inch === 39 && sqft.toFixed(3) === "21.938";
+        }
+      },
+      {
+        desc: "520 x 425 mm -> 21 x 18 in -> 2.625 Sqft",
+        run: () => {
+          const h = chartLookup(520), w = chartLookup(425);
+          const sqft = (h.inch / 12) * (w.inch / 12);
+          return h.inch === 21 && w.inch === 18 && sqft.toFixed(3) === "2.625";
+        }
+      },
+      {
+        desc: "1828.8 x 1219.2 mm -> unchanged (72 x 48 in)",
+        run: () => {
+          const h = chartLookup(1828.8), w = chartLookup(1219.2);
+          return h.inch === 72 && w.inch === 48 && Math.abs(h.mm - 1828.8) < 0.001 && Math.abs(w.mm - 1219.2) < 0.001;
+        }
+      },
+      {
+        desc: "1830 mm -> 75 in (1905 mm)",
+        run: () => {
+          const h = chartLookup(1830);
+          return h.inch === 75 && Math.abs(h.mm - 1905) < 0.001;
+        }
+      }
+    ];
+
+    selfTestCases.forEach(t => {
+      const ok = t.run();
+      console.log(`[Sqft Self-Test] ${t.desc}: ${ok ? "PASS" : "FAIL"}`);
+    });
+  } catch (err) {
+    console.warn("Sqft self-test skipped:", err);
+  }
+
+  return { MM_PER_FOOT, SQFT_MM, CUBIC_FOOT_MM, chartLookup, calculateLine, calculateTotals, formatMoney };
 });

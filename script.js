@@ -736,9 +736,15 @@ function updateCalculation() {
 
   if (calc.unit === "Sqft") {
     originalSize.textContent = calc.h && calc.w ? `${Math.round(calc.h)} × ${Math.round(calc.w)} mm` : "-- × -- mm";
-    roundedSize.textContent = calc.h && calc.w ? `${Math.round(calc.h)} × ${Math.round(calc.w)} mm` : "-- × -- mm";
+    if (calc.h && calc.w) {
+      const h = calc.chartH || (GlassCareCalculations.chartLookup ? GlassCareCalculations.chartLookup(calc.h) : { inch: Math.round(calc.h / 25.4), mm: calc.h });
+      const w = calc.chartW || (GlassCareCalculations.chartLookup ? GlassCareCalculations.chartLookup(calc.w) : { inch: Math.round(calc.w / 25.4), mm: calc.w });
+      roundedSize.textContent = `${h.mm} x ${w.mm} mm (${h.inch} x ${w.inch} in)`;
+    } else {
+      roundedSize.textContent = "-- × -- mm";
+    }
     areaDisplay.textContent = `${calc.area.toFixed(3)} Sqft`;
-    document.getElementById("calculationHint").textContent = "Area calculated from exact entered dimensions.";
+    document.getElementById("calculationHint").textContent = "Area calculated from client size chart (next 3-inch step).";
   } else if (calc.unit === "R.ft") {
     originalSize.textContent = calc.h && calc.w ? `${Math.round(calc.h)} × ${Math.round(calc.w)} mm` : "-- × -- mm";
     roundedSize.textContent = `${calc.runningFeet.toFixed(2)} R.ft`;

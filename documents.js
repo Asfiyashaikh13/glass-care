@@ -318,7 +318,9 @@
     const isKarnataka = record.state === "Karnataka";
     const stateCode = STATE_CODES[record.state] || "";
     const placeOfSupply = `${escapeHtml(record.state)}${stateCode ? ` (${stateCode})` : ""}`;
-    const totals = GlassCareCalculations.calculateTotals(record.items, record.state);
+    const totals = (record.totals && Array.isArray(record.totals.lines) && record.totals.lines.length)
+      ? record.totals
+      : GlassCareCalculations.calculateTotals(record.items, record.state);
     const customer = record.customer || {};
 
     let docTitle = "TAX INVOICE";

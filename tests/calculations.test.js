@@ -139,3 +139,36 @@ test("validates 15-character Indian GSTIN structure correctly", () => {
   assert.ok(!gstinRegex.test("ABCDE1234F1Z529")); // wrong order
 });
 
+test("calculates Sqft using client size chart 3-inch step", () => {
+  const c1 = calculations.calculateLine(line({ unit: "Sqft", height: 1800, width: 1200, quantity: 1, rate: 100 }));
+  assert.equal(c1.chartH.inch, 72);
+  assert.equal(c1.chartW.inch, 48);
+  assert.equal(c1.measure.toFixed(3), "24.000");
+
+  const c2 = calculations.calculateLine(line({ unit: "Sqft", height: 1200, width: 1000, quantity: 1, rate: 100 }));
+  assert.equal(c2.chartH.inch, 48);
+  assert.equal(c2.chartW.inch, 42);
+  assert.equal(c2.measure.toFixed(3), "14.000");
+
+  const c3 = calculations.calculateLine(line({ unit: "Sqft", height: 2000, width: 916, quantity: 1, rate: 100 }));
+  assert.equal(c3.chartH.inch, 81);
+  assert.equal(c3.chartW.inch, 39);
+  assert.equal(c3.measure.toFixed(3), "21.938");
+
+  const c4 = calculations.calculateLine(line({ unit: "Sqft", height: 520, width: 425, quantity: 1, rate: 100 }));
+  assert.equal(c4.chartH.inch, 21);
+  assert.equal(c4.chartW.inch, 18);
+  assert.equal(c4.measure.toFixed(3), "2.625");
+
+  const c5 = calculations.calculateLine(line({ unit: "Sqft", height: 1828.8, width: 1219.2, quantity: 1, rate: 100 }));
+  assert.equal(c5.chartH.inch, 72);
+  assert.equal(c5.chartW.inch, 48);
+  assert.equal(c5.chartH.mm, 1828.8);
+  assert.equal(c5.chartW.mm, 1219.2);
+
+  const c6 = calculations.chartLookup(1830);
+  assert.equal(c6.inch, 75);
+  assert.equal(c6.mm, 1905);
+});
+
+
