@@ -925,7 +925,16 @@ function updateTotals() {
       return row;
     });
   }));
-  document.getElementById("roundOff").textContent = formatMoney(totals.roundOff);
+  const ro = totals.roundOff;
+  const roEl = document.getElementById("roundOff");
+  if (roEl) {
+    if (Math.abs(ro) < 0.005) {
+      roEl.textContent = "₹0.00";
+    } else {
+      const roAbs = Math.abs(ro).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      roEl.textContent = `${ro > 0 ? "+ " : "- "}₹${roAbs}`;
+    }
+  }
   grandTotalDisplay.textContent = formatMoney(totals.payable, 0);
   amountWords.textContent = numberToWords(totals.payable) + " Only";
   try { localStorage.setItem("glassCareEstimate", JSON.stringify(estimateItems)); } catch { /* storage may be disabled */ }

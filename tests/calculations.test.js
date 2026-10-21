@@ -88,3 +88,23 @@ test("manual tax amount updates the implied GST rate", () => {
   assert.equal(result.gstRate, 80 / 900 * 100);
   assert.equal(result.taxAmount, 80);
 });
+
+test("calculates exact 2-decimal round off without float drift and formats money correctly", () => {
+  const totalsDown = calculations.calculateTotals([line({ rate: 12557.03 })], "Tamil Nadu");
+  assert.equal(totalsDown.unroundedTotal, 12557.03);
+  assert.equal(totalsDown.payable, 12557);
+  assert.equal(totalsDown.roundOff, -0.03);
+  assert.equal(calculations.formatMoney(totalsDown.roundOff), "-₹0.03");
+
+  const totalsUp = calculations.calculateTotals([line({ rate: 100.40 })], "Tamil Nadu");
+  assert.equal(totalsUp.unroundedTotal, 100.40);
+  assert.equal(totalsUp.payable, 100);
+  assert.equal(totalsUp.roundOff, -0.40);
+  assert.equal(calculations.formatMoney(totalsUp.roundOff), "-₹0.40");
+
+  const totalsPos = calculations.calculateTotals([line({ rate: 100.60 })], "Tamil Nadu");
+  assert.equal(totalsPos.unroundedTotal, 100.60);
+  assert.equal(totalsPos.payable, 101);
+  assert.equal(totalsPos.roundOff, 0.40);
+  assert.equal(calculations.formatMoney(totalsPos.roundOff), "₹0.40");
+});

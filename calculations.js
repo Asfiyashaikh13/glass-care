@@ -115,13 +115,13 @@
 
   function calculateTotals(items, state) {
     const lines = items.map(calculateLine);
-    const grossSubtotal = lines.reduce((sum, line) => sum + line.grossAmount, 0);
-    const discountTotal = lines.reduce((sum, line) => sum + line.discountAmount, 0);
-    const subtotal = lines.reduce((sum, line) => sum + line.taxableAmount, 0);
-    const taxTotal = lines.reduce((sum, line) => sum + line.taxAmount, 0);
+    const grossSubtotal = Math.round(lines.reduce((sum, line) => sum + line.grossAmount, 0) * 100) / 100;
+    const discountTotal = Math.round(lines.reduce((sum, line) => sum + line.discountAmount, 0) * 100) / 100;
+    const subtotal = Math.round(lines.reduce((sum, line) => sum + line.taxableAmount, 0) * 100) / 100;
+    const taxTotal = Math.round(lines.reduce((sum, line) => sum + line.taxAmount, 0) * 100) / 100;
     const intraState = state === "Karnataka";
-    const cgst = intraState ? taxTotal / 2 : 0;
-    const sgst = intraState ? taxTotal / 2 : 0;
+    const cgst = intraState ? Math.round((taxTotal / 2) * 100) / 100 : 0;
+    const sgst = intraState ? Math.round((taxTotal / 2) * 100) / 100 : 0;
     const igst = intraState ? 0 : taxTotal;
     const taxBreakdown = [...lines.reduce((groups, line) => {
       const rate = Number(line.gstRate.toFixed(6));
@@ -130,10 +130,17 @@
       group.taxAmount += line.taxAmount;
       groups.set(rate, group);
       return groups;
-    }, new Map()).values()].sort((a, b) => a.rate - b.rate);
-    const unroundedTotal = subtotal + taxTotal;
-    const payable = Math.floor(unroundedTotal + 0.5);
-    const roundOff = payable - unroundedTotal;
+    }, new Map()).values()].sort((a, b) => a.rate - b.rate).map(group => ({
+      rate: group.rate,
+      taxableAmount: Math.round(group.taxableAmount * 100) / 100,
+      taxAmount: Math.round(group.taxAmount * 100) / 100
+    }));
+    const unroundedTotal = Math.round((subtotal + taxTotal) * 100) / 100;
+    const payable = Math.round(unroundedTotal);
+    let roundOff = Math.round((payable - unroundedTotal) * 100) / 100;
+    if (Math.abs(roundOff) < 0.0001 || Object.is(roundOff, -0)) {
+      roundOff = 0;
+    }
 
     return {
       lines,
@@ -152,10 +159,16 @@
   }
 
   function formatMoney(value, decimals = 2) {
-    return `₹${finiteNumber(value).toLocaleString("en-IN", {
+    const num = finiteNumber(value);
+    const abs = Math.abs(num);
+    const formatted = abs.toLocaleString("en-IN", {
       minimumFractionDigits: decimals,
       maximumFractionDigits: decimals
-    })}`;
+    });
+    if (num < -0.0001) {
+      return `-₹${formatted}`;
+    }
+    return `₹${formatted}`;
   }
 
   return { MM_PER_FOOT, SQFT_MM, CUBIC_FOOT_MM, calculateLine, calculateTotals, formatMoney };

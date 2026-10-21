@@ -60,6 +60,8 @@
 
   let currentBlobUrl = null;
   let currentRecord = null;
+  let currentIsNotes = false;
+  let currentHtml = "";
 
   if (termsText) {
     termsText.value = settings.terms || DEFAULT_TERMS.join("\n");
@@ -938,7 +940,11 @@
           ${taxSummaryRows}
           <tr>
             <td class="text-left">Rounding</td>
-            <td class="text-right">${totals.roundOff >= 0 ? "+" : ""}${formatRawNumber(totals.roundOff)}</td>
+            <td class="text-right">${
+              Math.abs(totals.roundOff) < 0.005
+                ? "0.00"
+                : (totals.roundOff > 0 ? "+" : "−") + formatRawNumber(Math.abs(totals.roundOff))
+            }</td>
           </tr>
           <tr class="grand-total-row">
             <td class="text-left">Total</td>
@@ -973,44 +979,79 @@
 </html>`;
   }
 
-  function showDocumentInModal(record, isNotes = false) {
-    currentRecord = record;
-    const html = documentHtml(record, isNotes, false);
-    const blob = new Blob([html], { type: "text/html;charset=utf-8" });
-    if (currentBlobUrl) URL.revokeObjectURL(currentBlobUrl);
-    currentBlobUrl = URL.createObjectURL(blob);
+  function isMobileDevice() {
+    try {
+      return (
+        /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+        (window.matchMedia && window.matchMedia("(max-width: 768px)").matches)
+      );
+    } catch {
+      return false;
+    }
+  }
 
-    if (pdfPreviewFrame) pdfPreviewFrame.src = currentBlobUrl;
+  function showDocumentInModal(record, isNotes = false, htmlPrecomputed = null) {
+    currentRecord = record;
+    currentIsNotes = !!isNotes;
+    const html = htmlPrecomputed || documentHtml(record, isNotes, false);
+    currentHtml = html;
+
+    if (pdfPreviewFrame) {
+      // Direct srcdoc avoids blob restrictions and popup blocking on Android Chrome
+      try {
+        pdfPreviewFrame.srcdoc = html;
+      } catch (err) {
+        console.warn("Could not set srcdoc on preview iframe:", err);
+      }
+
+      try {
+        if (currentBlobUrl) URL.revokeObjectURL(currentBlobUrl);
+        const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+        currentBlobUrl = URL.createObjectURL(blob);
+        if (!("srcdoc" in pdfPreviewFrame)) {
+          pdfPreviewFrame.src = currentBlobUrl;
+        }
+      } catch (e) {
+        console.warn("Could not create fallback blob:", e);
+      }
+    }
+
     if (pdfModalTitle) {
       pdfModalTitle.textContent = `${isNotes ? "Calculation Notes — " : ""}${record.type} ${record.number}`;
     }
-    if (pdfModal) pdfModal.hidden = false;
+    if (pdfModal) {
+      pdfModal.hidden = false;
+      document.body.classList.add("modal-open");
+    }
     return currentBlobUrl;
   }
 
   function openPdf(record, isNotes = false, autoPrint = false, existingWindow = null) {
     const html = documentHtml(record, isNotes, autoPrint);
-    const blob = new Blob([html], { type: "text/html;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
 
-    // Also display in-page modal so user ALWAYS sees the document immediately!
-    showDocumentInModal(record, isNotes);
+    // Always render directly in modal preview with srcdoc
+    showDocumentInModal(record, isNotes, html);
 
+    // If an existing desktop popup window was opened, populate it via document.write
     if (existingWindow && !existingWindow.closed) {
       try {
-        existingWindow.location.href = url;
+        existingWindow.document.open();
+        existingWindow.document.write(html);
+        existingWindow.document.close();
         return existingWindow;
       } catch (e) {
-        // Fall back to modal preview
+        console.warn("Could not write HTML to popup window:", e);
       }
     }
     return null;
   }
 
   function openPendingPdfWindow() {
+    if (isMobileDevice()) return null;
     try {
       const popup = window.open("", "_blank");
       if (popup) {
+        popup.document.open();
         popup.document.write("<!doctype html><title>Preparing document…</title><body style='font:15px Arial;padding:30px;color:#172033;background:#f8fafc'><h3 style='color:#084a9b'>Glass Care Enterprises</h3><p>Preparing your professional tax invoice / document…</p></body>");
         popup.document.close();
       }
@@ -1021,7 +1062,7 @@
   }
 
   async function generate(type, data = collectDetails(), sourceId = null) {
-    // Open pending popup if browser allows; regardless, modal preview will guarantee viewing
+    // Open pending popup if desktop browser allows; regardless, modal preview will guarantee viewing
     const popup = openPendingPdfWindow();
     showStatus(`Preparing ${type}…`);
 
@@ -1044,9 +1085,12 @@
     if (savedRecord.notesEnabled && popup && !popup.closed) {
       popup.addEventListener("afterprint", () => {
         if (!popup.closed) {
-          const notesHtml = documentHtml(savedRecord, true, false);
-          const notesBlob = new Blob([notesHtml], { type: "text/html;charset=utf-8" });
-          popup.location.href = URL.createObjectURL(notesBlob);
+          try {
+            const notesHtml = documentHtml(savedRecord, true, false);
+            popup.document.open();
+            popup.document.write(notesHtml);
+            popup.document.close();
+          } catch (e) {}
         }
       }, { once: true });
     }
@@ -1168,7 +1212,7 @@
       printBtn.className = "primary-action saved-doc-view-btn";
       printBtn.textContent = "View / Print PDF";
       printBtn.addEventListener("click", () => {
-        const popup = window.open("", "_blank");
+        const popup = isMobileDevice() ? null : window.open("", "_blank");
         openPdf(record, false, false, popup);
       });
       actions.append(printBtn);
@@ -1204,7 +1248,7 @@
       notesBtn.textContent = "Calculation Notes";
       notesBtn.addEventListener("click", () => {
         closeAllDocMenus();
-        const popup = window.open("", "_blank");
+        const popup = isMobileDevice() ? null : window.open("", "_blank");
         openPdf(record, true, false, popup);
       });
       dropdown.append(notesBtn);
@@ -1288,37 +1332,65 @@
     }
   });
 
+  function closeModal() {
+    if (pdfModal) pdfModal.hidden = true;
+    document.body.classList.remove("modal-open");
+  }
+
   document.addEventListener("keydown", event => {
     if (event.key === "Escape" || event.key === "Esc") {
       closeAllDocMenus();
+      if (pdfModal && !pdfModal.hidden) {
+        closeModal();
+      }
     }
   });
 
   // Modal interactions
   if (modalPrintBtn) {
     modalPrintBtn.addEventListener("click", () => {
-      if (pdfPreviewFrame?.contentWindow) {
-        pdfPreviewFrame.contentWindow.focus();
-        pdfPreviewFrame.contentWindow.print();
+      try {
+        if (pdfPreviewFrame?.contentWindow) {
+          pdfPreviewFrame.contentWindow.focus();
+          pdfPreviewFrame.contentWindow.print();
+          return;
+        }
+      } catch (e) {
+        console.warn("Could not print from iframe:", e);
+      }
+      if (currentRecord) {
+        const printWin = window.open("", "_blank");
+        if (printWin) {
+          const html = documentHtml(currentRecord, currentIsNotes, true);
+          printWin.document.open();
+          printWin.document.write(html);
+          printWin.document.close();
+        }
       }
     });
   }
   if (modalNewTabBtn) {
     modalNewTabBtn.addEventListener("click", () => {
+      if (currentRecord) {
+        const win = window.open("", "_blank");
+        if (win) {
+          const html = documentHtml(currentRecord, currentIsNotes, false);
+          win.document.open();
+          win.document.write(html);
+          win.document.close();
+          return;
+        }
+      }
       if (currentBlobUrl) {
         window.open(currentBlobUrl, "_blank");
       }
     });
   }
   if (modalCloseBtn) {
-    modalCloseBtn.addEventListener("click", () => {
-      if (pdfModal) pdfModal.hidden = true;
-    });
+    modalCloseBtn.addEventListener("click", closeModal);
   }
   if (pdfModalBackdrop) {
-    pdfModalBackdrop.addEventListener("click", () => {
-      if (pdfModal) pdfModal.hidden = true;
-    });
+    pdfModalBackdrop.addEventListener("click", closeModal);
   }
 
   document.getElementById("companySettingsBtn")?.addEventListener("click", () => {
