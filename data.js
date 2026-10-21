@@ -119,20 +119,6 @@ const itemNames = [
   "Wall Partition, 25X45 Al Fixed,"
 ];
 
-const factories = [
-  "Rn Tough",
-  "Veera Glass",
-  "Arihant Safety",
-  "Apple Safety",
-  "Bhoomi Tough",
-  "Kb Glass Solution",
-  "Wender Sachin",
-  "Wender Neeraj",
-  "Powder Quoted Rasheed",
-  "Anodiezed Quoted",
-  "Uma Industries"
-];
-
 const states = [
   "Karnataka",
   "Tamil Nadu",

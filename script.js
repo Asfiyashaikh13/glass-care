@@ -1,33 +1,36 @@
 const MM_PER_FOOT = 304.8;
 const SQFT_MM = 92903.04;
-const GST_RATE = 0.18;
-
-let estimateItems = [];
+const GST_RATE = 18;
+const savedEstimate = (() => {
+  try { return JSON.parse(localStorage.getItem("glassCareEstimate") || "[]"); }
+  catch { return []; }
+})();
+const savedDraft = (() => {
+  try { return JSON.parse(localStorage.getItem("glassCareDraft") || "{}"); }
+  catch { return {}; }
+})();
+let estimateItems = Array.isArray(savedEstimate) ? savedEstimate : [];
 
 /* ELEMENTS */
 const categorySelect = document.getElementById("category");
 const categoryCustom = document.getElementById("categoryCustom");
 const itemNameSelect = document.getElementById("itemName");
 const itemNameCustom = document.getElementById("itemNameCustom");
-const factorySelect = document.getElementById("factory");
-const factoryCustom = document.getElementById("factoryCustom");
 const height = document.getElementById("height");
 const width = document.getElementById("width");
+const thickness = document.getElementById("thickness");
 const quantity = document.getElementById("quantity");
 const rate = document.getElementById("rate");
 const discountPercent = document.getElementById("discountPercent");
+const gstRateInput = document.getElementById("gstRate");
 const unitDisplay = document.getElementById("unitDisplay");
 const originalSize = document.getElementById("originalSize");
 const roundedSize = document.getElementById("roundedSize");
 const areaDisplay = document.getElementById("areaDisplay");
 const amountDisplay = document.getElementById("amountDisplay");
-const calculationBasis = document.getElementById("calculationBasis");
 const estimateBody = document.getElementById("estimateBody");
 const subtotalDisplay = document.getElementById("subtotal");
-const gst1 = document.getElementById("gst1");
-const gst2 = document.getElementById("gst2");
-const gst1Label = document.getElementById("gst1Label");
-const gst2Label = document.getElementById("gst2Label");
+const taxBreakdownRows = document.getElementById("taxBreakdownRows");
 const grandTotalDisplay = document.getElementById("grandTotal");
 const customerState = document.getElementById("customerState");
 const amountWords = document.getElementById("amountWords");
@@ -284,7 +287,7 @@ editRateBtn.addEventListener("click", () => {
     saveRateBook(rateBook);
     rateSourceTag.textContent = `✓ saved ₹${value} as default`;
     rateSourceTag.style.color = "#17733f";
-    
+
     // Exit edit mode
     rate.setAttribute("readonly", "");
     isRateEditing = false;
@@ -381,7 +384,6 @@ function fillSelect(select, list, insertBeforeCustom) {
 function initialize() {
   fillSelect(categorySelect, glassCategories, true);
   fillSelect(itemNameSelect, itemNames, true);
-  fillSelect(factorySelect, factories, true);
 
   states.forEach(s => {
     const option = document.createElement("option");
@@ -391,12 +393,31 @@ function initialize() {
   });
   customerState.value = states[0] || "";
 
-  document.getElementById("estimateDate").value = new Date().toISOString().split("T")[0];
+  ["customerName", "flatNo", "buildingName", "customerPhone"].forEach(id => {
+    const field = document.getElementById(id);
+    field.value = savedDraft[id] || "";
+    field.addEventListener("input", persistDraft);
+  });
+  if (savedDraft.state && states.includes(savedDraft.state)) customerState.value = savedDraft.state;
+
+  document.getElementById("estimateDate").value = savedDraft.date || new Date().toISOString().split("T")[0];
   document.getElementById("estimateNumber").textContent = generateEstimateNumber();
 
   renderEstimate();
   updateCalculation();
   renderRateBook();
+}
+
+function persistDraft() {
+  const draft = {
+    customerName: document.getElementById("customerName").value,
+    flatNo: document.getElementById("flatNo").value,
+    buildingName: document.getElementById("buildingName").value,
+    customerPhone: document.getElementById("customerPhone").value,
+    date: document.getElementById("estimateDate").value,
+    state: customerState.value
+  };
+  try { localStorage.setItem("glassCareDraft", JSON.stringify(draft)); } catch { /* storage may be disabled */ }
 }
 
 /* CUSTOM VALUE TOGGLES */
@@ -415,7 +436,6 @@ function wireCustomToggle(select, customInput, onChangeExtra) {
 }
 wireCustomToggle(categorySelect, categoryCustom, applyRateBookSuggestion);
 wireCustomToggle(itemNameSelect, itemNameCustom);
-wireCustomToggle(factorySelect, factoryCustom);
 categoryCustom.addEventListener("input", applyRateBookSuggestion);
 
 function getSelectedValue(select, customInput) {
@@ -436,33 +456,17 @@ function generateEstimateNumber() {
 
 /* LIVE CALCULATION (based on selected Unit) */
 function getCalculation() {
-  const unit = unitDisplay.value;
-  const qty = Number(quantity.value) || 1;
-  const itemRate = Number(rate.value) || 0;
-  const discount = Math.min(100, Math.max(0, Number(discountPercent.value) || 0));
-  const h = Number(height.value) || 0;
-  const w = Number(width.value) || 0;
-
-  let area = 0;
-  let runningFeet = 0;
-  let baseAmount = 0;
-
-  if (unit === "Sqft") {
-    if (h > 0 && w > 0) {
-      area = (h * w * qty) / SQFT_MM;
-      baseAmount = area * itemRate;
-    }
-  } else if (unit === "R.ft") {
-    runningFeet = ((h + w) * 2 * qty) / MM_PER_FOOT;
-    baseAmount = runningFeet * itemRate;
-  } else {
-    baseAmount = qty * itemRate;
-  }
-
-  // Apply the spreadsheet-style percentage discount, then round displayed currency to paise.
-  const amount = Math.round((baseAmount * (1 - discount / 100) || 0) * 100) / 100;
-
-  return { unit, qty, itemRate, discount, h, w, area, runningFeet, amount };
+  const line = GlassCareCalculations.calculateLine({
+    unit: unitDisplay.value,
+    quantity: quantity.value,
+    rate: rate.value,
+    discountPercent: discountPercent.value,
+    gstRate: gstRateInput.value,
+    height: Number(height.value) || 0,
+    width: Number(width.value) || 0,
+    thickness: Number(thickness.value) || 0
+  });
+  return { ...line, qty: line.quantity, itemRate: line.rate, discount: line.discountPercent, h: line.height, w: line.width, area: line.unit === "Sqft" ? line.measure : 0, runningFeet: line.unit === "R.ft" ? line.measure : 0 };
 }
 
 /* UPDATE SCREEN */
@@ -470,21 +474,28 @@ function updateCalculation() {
   const calc = getCalculation();
 
   if (calc.unit === "Sqft") {
-    originalSize.textContent = calc.h && calc.w ? `${calc.h} × ${calc.w} mm` : "-- × -- mm";
-    roundedSize.textContent = calc.h && calc.w ? `${calc.h} × ${calc.w} mm (exact)` : "-- × -- mm";
+    originalSize.textContent = calc.h && calc.w ? `${Math.round(calc.h)} × ${Math.round(calc.w)} mm` : "-- × -- mm";
+    roundedSize.textContent = calc.h && calc.w ? `${Math.round(calc.h)} × ${Math.round(calc.w)} mm` : "-- × -- mm";
     areaDisplay.textContent = `${calc.area.toFixed(3)} Sqft`;
-    calculationBasis.textContent = "Exact Area (Sqft)";
+    document.getElementById("calculationHint").textContent = "Area calculated from exact entered dimensions.";
   } else if (calc.unit === "R.ft") {
-    originalSize.textContent = calc.h && calc.w ? `${calc.h} × ${calc.w} mm` : "-- × -- mm";
+    originalSize.textContent = calc.h && calc.w ? `${Math.round(calc.h)} × ${Math.round(calc.w)} mm` : "-- × -- mm";
     roundedSize.textContent = `${calc.runningFeet.toFixed(2)} R.ft`;
     areaDisplay.textContent = `${calc.runningFeet.toFixed(2)} R.ft`;
-    calculationBasis.textContent = "Running Feet × Rate, less discount";
+    document.getElementById("calculationHint").textContent = "Running feet calculated from the entered perimeter.";
+  } else if (calc.unit === "Cubic Ft") {
+    originalSize.textContent = calc.h && calc.w && calc.thickness ? `${calc.h} × ${calc.w} × ${calc.thickness} mm` : "Length × width × thickness required";
+    roundedSize.textContent = calc.measureLabel;
+    areaDisplay.textContent = calc.measureLabel;
+    document.getElementById("calculationHint").textContent = "Cubic feet uses length × width × thickness in mm.";
   } else {
     originalSize.textContent = "Not required";
     roundedSize.textContent = "Not applicable";
     areaDisplay.textContent = `${calc.qty} ${calc.unit}`;
-    calculationBasis.textContent = "Quantity × Rate, less discount";
+    document.getElementById("calculationHint").textContent = "Quantity × rate, less discount.";
   }
+
+  if (calc.errors.length) document.getElementById("calculationHint").textContent = calc.errors[0];
 
   amountDisplay.textContent = formatMoney(calc.amount);
 }
@@ -493,8 +504,6 @@ function updateCalculation() {
 document.getElementById("addItem").addEventListener("click", function () {
   const categoryValue = getSelectedValue(categorySelect, categoryCustom);
   const itemNameValue = getSelectedValue(itemNameSelect, itemNameCustom);
-  const factoryValue = getSelectedValue(factorySelect, factoryCustom);
-
   if (!categoryValue) {
     alert("Please select or type a Product Category.");
     return;
@@ -509,18 +518,31 @@ document.getElementById("addItem").addEventListener("click", function () {
     alert("Please enter Height and Width for an R.ft item.");
     return;
   }
+  if (calc.unit === "Cubic Ft" && (!calc.h || !calc.w || !calc.thickness)) {
+    alert("Enter length, width and thickness/depth in mm for a Cubic Ft item.");
+    return;
+  }
+  if (calc.errors.length) {
+    alert(calc.errors[0]);
+    return;
+  }
+  if (calc.rate < 0 || calc.quantity < 1 || calc.discountPercent < 0 || calc.discountPercent > 100 || calc.gstRate < 0 || calc.gstRate > 100) {
+    alert("Check quantity, rate, discount and GST values. Quantity must be at least 1; rates must be non-negative; percentages must be 0–100.");
+    return;
+  }
 
   const item = {
     id: Date.now(),
     category: categoryValue,
     itemName: itemNameValue,
-    factory: factoryValue,
     unit: calc.unit,
     height: calc.h,
     width: calc.w,
+    thickness: calc.thickness,
     quantity: calc.qty,
     rate: calc.itemRate,
     discountPercent: calc.discount,
+    gstRate: calc.gstRate,
     amount: calc.amount
   };
 
@@ -537,14 +559,13 @@ function resetItemForm() {
   itemNameSelect.value = "";
   itemNameCustom.style.display = "none";
   itemNameCustom.value = "";
-  factorySelect.value = "";
-  factoryCustom.style.display = "none";
-  factoryCustom.value = "";
   height.value = "";
   width.value = "";
+  thickness.value = "";
   quantity.value = 1;
   rate.value = 0;
   discountPercent.value = 10;
+  gstRateInput.value = GST_RATE;
   rate.setAttribute("readonly", "");
   isRateEditing = false;
   editRateBtn.style.display = "block";
@@ -559,31 +580,12 @@ function resetItemForm() {
 
 /* RECALCULATE A ROW'S AREA/RUNNING-FEET/AMOUNT FROM ITS CURRENT FIELDS */
 function recalcItem(item) {
-  const h = Math.max(0, Number(item.height) || 0);
-  const w = Math.max(0, Number(item.width) || 0);
-  const qty = Math.max(1, Number(item.quantity) || 1);
-  const itemRate = Math.max(0, Number(item.rate) || 0);
-  const discount = Math.min(100, Math.max(0, Number(item.discountPercent ?? 10) || 0));
+  Object.assign(item, GlassCareCalculations.calculateLine(item));
+}
 
-  if (item.unit === "Sqft") {
-    if (h > 0 && w > 0) {
-      const area = (h * w * qty) / SQFT_MM;
-      item.area = area;
-      item.amount = area * itemRate * (1 - discount / 100);
-    } else {
-      item.area = 0;
-      item.amount = 0;
-    }
-  } else if (item.unit === "R.ft") {
-    const runningFeet = ((h + w) * 2 * qty) / MM_PER_FOOT;
-    item.runningFeet = runningFeet;
-    item.amount = runningFeet * itemRate * (1 - discount / 100);
-  } else {
-    item.amount = qty * itemRate * (1 - discount / 100);
-  }
-
-  // Round item amount to 2 decimals (paise) for stable totals
-  item.amount = Math.round((Number(item.amount) || 0) * 100) / 100;
+function clearAmountOverrides(item) {
+  delete item.taxableAmountOverride;
+  delete item.taxAmountOverride;
 }
 
 /* RENDER TABLE (every relevant cell is editable in place) */
@@ -593,7 +595,7 @@ function renderEstimate() {
   if (estimateItems.length === 0) {
     estimateBody.innerHTML = `
       <tr>
-        <td colspan="10" style="text-align:center;padding:35px;color:#7b8795;">
+        <td colspan="12" style="text-align:center;padding:35px;color:#7b8795;">
           No items added yet.
         </td>
       </tr>
@@ -614,12 +616,12 @@ function renderEstimate() {
     const catInput = document.createElement("input");
     catInput.className = "cell-edit";
     catInput.value = item.category;
-    catInput.addEventListener("change", () => { item.category = catInput.value; });
+    catInput.addEventListener("change", () => { item.category = catInput.value; updateTotals(); });
     const itemInput = document.createElement("input");
     itemInput.className = "cell-edit item-category";
-    itemInput.value = item.itemName;
+    itemInput.value = item.itemName || "";
     itemInput.placeholder = "Item name";
-    itemInput.addEventListener("change", () => { item.itemName = itemInput.value; });
+    itemInput.addEventListener("change", () => { item.itemName = itemInput.value; updateTotals(); });
     catCell.appendChild(catInput);
     catCell.appendChild(itemInput);
     row.appendChild(catCell);
@@ -636,7 +638,7 @@ function renderEstimate() {
       hInput.className = "cell-edit";
       hInput.min = "0";
       hInput.value = item.height;
-      hInput.addEventListener("input", () => { item.height = Number(hInput.value) || 0; recalcItem(item); refreshRowCalcs(row, item); updateTotals(); });
+      hInput.addEventListener("input", () => { item.height = Number(hInput.value) || 0; delete item.measureOverride; clearAmountOverrides(item); recalcItem(item); refreshRowCalcs(row, item); updateTotals(); });
       const xSpan = document.createElement("span");
       xSpan.textContent = "×";
       const wInput = document.createElement("input");
@@ -644,10 +646,21 @@ function renderEstimate() {
       wInput.className = "cell-edit";
       wInput.min = "0";
       wInput.value = item.width;
-      wInput.addEventListener("input", () => { item.width = Number(wInput.value) || 0; recalcItem(item); refreshRowCalcs(row, item); updateTotals(); });
+      wInput.addEventListener("input", () => { item.width = Number(wInput.value) || 0; delete item.measureOverride; clearAmountOverrides(item); recalcItem(item); refreshRowCalcs(row, item); updateTotals(); });
       sizeRow.appendChild(hInput);
       sizeRow.appendChild(xSpan);
       sizeRow.appendChild(wInput);
+      if (item.unit === "Cubic Ft") {
+        const depthInput = document.createElement("input");
+        depthInput.type = "number";
+        depthInput.className = "cell-edit";
+        depthInput.min = "0";
+        depthInput.value = item.thickness || "";
+        depthInput.setAttribute("aria-label", "Thickness or depth in millimetres");
+        depthInput.addEventListener("input", () => { item.thickness = Number(depthInput.value) || 0; delete item.measureOverride; clearAmountOverrides(item); recalcItem(item); refreshRowCalcs(row, item); updateTotals(); });
+        sizeRow.append("×");
+        sizeRow.appendChild(depthInput);
+      }
       sizeCell.appendChild(sizeRow);
     }
     row.appendChild(sizeCell);
@@ -656,7 +669,7 @@ function renderEstimate() {
     const unitCell = document.createElement("td");
     const unitSelect = document.createElement("select");
     unitSelect.className = "cell-edit";
-    ["Sqft", "R.ft", "Pcs", "Job"].forEach(u => {
+    ["Sqft", "R.ft", "Cubic Ft", "Pcs", "Job"].forEach(u => {
       const opt = document.createElement("option");
       opt.value = u;
       opt.textContent = u;
@@ -665,6 +678,8 @@ function renderEstimate() {
     });
     unitSelect.addEventListener("change", () => {
       item.unit = unitSelect.value;
+      delete item.measureOverride;
+      clearAmountOverrides(item);
       recalcItem(item);
       renderEstimate();
     });
@@ -678,13 +693,27 @@ function renderEstimate() {
     qtyInput.min = "1";
     qtyInput.className = "cell-edit";
     qtyInput.value = item.quantity;
-    qtyInput.addEventListener("input", () => { item.quantity = Number(qtyInput.value) || 1; recalcItem(item); refreshRowCalcs(row, item); updateTotals(); });
+    qtyInput.addEventListener("input", () => { item.quantity = qtyInput.value === "" ? 0 : Number(qtyInput.value); delete item.measureOverride; clearAmountOverrides(item); recalcItem(item); refreshRowCalcs(row, item); updateTotals(); });
     qtyCell.appendChild(qtyInput);
     row.appendChild(qtyCell);
 
     // Area / Run Ft cell (auto-calculated, read-only)
     const areaCell = document.createElement("td");
     areaCell.className = "area-cell";
+    const measureInput = document.createElement("input");
+    measureInput.type = "number";
+    measureInput.className = "cell-edit measure-input";
+    measureInput.min = "0";
+    measureInput.step = "any";
+    measureInput.setAttribute("aria-label", "Area, running feet or volume");
+    measureInput.addEventListener("input", () => {
+      item.measureOverride = Number(measureInput.value);
+      clearAmountOverrides(item);
+      recalcItem(item);
+      refreshRowCalcs(row, item);
+      updateTotals();
+    });
+    areaCell.appendChild(measureInput);
     row.appendChild(areaCell);
 
     // Rate cell
@@ -694,7 +723,7 @@ function renderEstimate() {
     rateInput.className = "cell-edit";
     rateInput.min = "0";
     rateInput.value = item.rate;
-    rateInput.addEventListener("input", () => { item.rate = Number(rateInput.value) || 0; recalcItem(item); refreshRowCalcs(row, item); updateTotals(); });
+    rateInput.addEventListener("input", () => { item.rate = Number(rateInput.value) || 0; clearAmountOverrides(item); recalcItem(item); refreshRowCalcs(row, item); updateTotals(); });
     rateCell.appendChild(rateInput);
     row.appendChild(rateCell);
 
@@ -709,6 +738,7 @@ function renderEstimate() {
     discountInput.value = item.discountPercent ?? 10;
     discountInput.addEventListener("input", () => {
       item.discountPercent = Math.min(100, Math.max(0, Number(discountInput.value) || 0));
+      clearAmountOverrides(item);
       recalcItem(item);
       refreshRowCalcs(row, item);
       updateTotals();
@@ -716,18 +746,113 @@ function renderEstimate() {
     discountCell.appendChild(discountInput);
     row.appendChild(discountCell);
 
+    const gstCell = document.createElement("td");
+    const gstInput = document.createElement("input");
+    gstInput.type = "number";
+    gstInput.className = "cell-edit";
+    gstInput.min = "0";
+    gstInput.max = "100";
+    gstInput.step = "0.01";
+    gstInput.value = item.gstRate ?? GST_RATE;
+    gstInput.setAttribute("aria-label", "GST rate percent");
+    gstInput.addEventListener("input", () => {
+      item.gstRate = Number(gstInput.value) || 0;
+      delete item.taxAmountOverride;
+      recalcItem(item);
+      refreshRowCalcs(row, item);
+      updateTotals();
+    });
+    gstCell.appendChild(gstInput);
+    row.appendChild(gstCell);
+
     // Amount cell (auto-calculated, read-only)
     const amountCell = document.createElement("td");
     amountCell.className = "amount amount-cell";
+    const amountInput = document.createElement("input");
+    amountInput.type = "number";
+    amountInput.className = "cell-edit taxable-amount-input";
+    amountInput.min = "0";
+    amountInput.step = "0.01";
+    amountInput.setAttribute("aria-label", "Taxable amount in rupees");
+    amountInput.addEventListener("input", () => {
+      item.taxableAmountOverride = Number(amountInput.value);
+      delete item.taxAmountOverride;
+      recalcItem(item);
+      discountInput.value = Number(item.discountPercent || 0).toFixed(2);
+      refreshRowCalcs(row, item);
+      updateTotals();
+    });
     row.appendChild(amountCell);
+    amountCell.appendChild(amountInput);
+
+    const taxAmountCell = document.createElement("td");
+    taxAmountCell.className = "tax-amount-cell";
+    const taxAmountInput = document.createElement("input");
+    taxAmountInput.type = "number";
+    taxAmountInput.className = "cell-edit tax-amount-input";
+    taxAmountInput.min = "0";
+    taxAmountInput.step = "0.01";
+    taxAmountInput.setAttribute("aria-label", "Tax amount in rupees");
+    taxAmountInput.addEventListener("input", () => {
+      item.taxAmountOverride = Number(taxAmountInput.value);
+      recalcItem(item);
+      gstInput.value = Number(item.gstRate || 0).toFixed(2);
+      refreshRowCalcs(row, item);
+      updateTotals();
+    });
+    taxAmountCell.appendChild(taxAmountInput);
+    row.insertBefore(taxAmountCell, amountCell);
 
     // Action cell
     const actionCell = document.createElement("td");
+    actionCell.className = "action-cell";
+    const editBtn = document.createElement("button");
+    editBtn.className = "row-edit-btn";
+    editBtn.textContent = "Edit";
+    const saveBtn = document.createElement("button");
+    saveBtn.className = "row-save-btn";
+    saveBtn.textContent = "Save";
+    saveBtn.hidden = true;
+    const cancelBtn = document.createElement("button");
+    cancelBtn.className = "row-cancel-btn";
+    cancelBtn.textContent = "Cancel";
+    cancelBtn.hidden = true;
+    const rowFields = [...row.querySelectorAll("input, select")];
+    rowFields.forEach(field => { field.disabled = true; });
+    editBtn.addEventListener("click", () => {
+      editBtn.hidden = true;
+      saveBtn.hidden = false;
+      cancelBtn.hidden = false;
+      rowFields.forEach(field => { if (!field.classList.contains("amount-cell")) field.disabled = false; });
+    });
+    saveBtn.addEventListener("click", () => {
+      recalcItem(item);
+      if (item.errors?.length) {
+        alert(`Please correct this item: ${item.errors[0]}`);
+        return;
+      }
+      delete item.factory;
+      delete item.vendor;
+      renderEstimate();
+    });
+    cancelBtn.addEventListener("click", () => {
+      const itemIndex = estimateItems.findIndex(savedItem => savedItem.id === item.id);
+      if (itemIndex !== -1 && row.dataset.original) {
+        estimateItems[itemIndex] = JSON.parse(row.dataset.original);
+      }
+      renderEstimate();
+    });
+    row.dataset.original = JSON.stringify({ ...item });
+    actionCell.append(editBtn, saveBtn, cancelBtn);
     const deleteBtn = document.createElement("button");
     deleteBtn.className = "action-btn";
     deleteBtn.textContent = "🗑";
     deleteBtn.addEventListener("click", () => deleteItem(item.id));
     actionCell.appendChild(deleteBtn);
+    const rowError = document.createElement("span");
+    rowError.className = "row-error";
+    rowError.setAttribute("role", "alert");
+    actionCell.appendChild(rowError);
     row.appendChild(actionCell);
 
     // number cell prepended
@@ -747,15 +872,17 @@ function renderEstimate() {
 /* Update the read-only Area and Amount cells of a row without a full re-render */
 function refreshRowCalcs(row, item) {
   const areaCell = row.querySelector(".area-cell");
+  const measureInput = row.querySelector(".measure-input");
   const amountCell = row.querySelector(".amount-cell");
-  if (item.unit === "Sqft") {
-    areaCell.textContent = `${item.area.toFixed(3)} Sqft`;
-  } else if (item.unit === "R.ft") {
-    areaCell.textContent = `${item.runningFeet.toFixed(2)} R.ft`;
-  } else {
-    areaCell.textContent = `${item.quantity} ${item.unit}`;
-  }
-  amountCell.textContent = formatMoney(item.amount);
+  const taxAmountInput = row.querySelector(".tax-amount-input");
+  const amountInput = row.querySelector(".taxable-amount-input");
+  if (document.activeElement !== measureInput) measureInput.value = Number(item.measure || 0);
+  measureInput.title = item.measureLabel;
+  measureInput.disabled = ["Pcs", "Job"].includes(item.unit);
+  if (document.activeElement !== amountInput) amountInput.value = Number(item.taxableAmount || 0);
+  if (document.activeElement !== taxAmountInput) taxAmountInput.value = Number(item.taxAmount || 0);
+  const rowError = row.querySelector(".row-error");
+  if (rowError) rowError.textContent = (item.errors || []).join(" ");
 }
 
 /* DELETE */
@@ -775,45 +902,37 @@ document.getElementById("clearAll").addEventListener("click", function () {
 
 /* TOTALS */
 function updateTotals() {
-  // Sum rounded paise from each line to avoid floating-point drift
-  const subtotal = estimateItems.reduce((totalPaise, item) => {
-    const paise = Math.round((Number(item.amount) || 0) * 100);
-    return totalPaise + paise;
-  }, 0) / 100;
-
-  let gstFirst = 0;
-  let gstSecond = 0;
-
-  if (customerState.value === "Karnataka") {
-    gstFirst = subtotal * 0.09;
-    gstSecond = subtotal * 0.09;
-    gst1Label.textContent = "CGST (9%)";
-    gst2Label.textContent = "SGST (9%)";
-  } else {
-    gstFirst = subtotal * GST_RATE;
-    gstSecond = 0;
-    gst1Label.textContent = "IGST (18%)";
-    gst2Label.textContent = "";
-  }
-
-  // Round GSTs and grand total to paise
-  gstFirst = Math.round(gstFirst * 100) / 100;
-  gstSecond = Math.round(gstSecond * 100) / 100;
-  const grandTotal = Math.round((subtotal + gstFirst + gstSecond) * 100) / 100;
-
-  subtotalDisplay.textContent = formatMoney(subtotal);
-  gst1.textContent = formatMoney(gstFirst);
-  gst2.textContent = gstSecond ? formatMoney(gstSecond) : "-";
-  grandTotalDisplay.textContent = formatMoney(grandTotal);
-  amountWords.textContent = numberToWords(Math.round(grandTotal)) + " Only";
+  estimateItems.forEach(recalcItem);
+  const totals = GlassCareCalculations.calculateTotals(estimateItems, customerState.value);
+  document.getElementById("grossSubtotal").textContent = formatMoney(totals.grossSubtotal);
+  document.getElementById("totalDiscount").textContent = `− ${formatMoney(totals.discountTotal)}`;
+  subtotalDisplay.textContent = formatMoney(totals.subtotal);
+  taxBreakdownRows.replaceChildren(...totals.taxBreakdown.flatMap(group => {
+    const rate = group.rate.toLocaleString("en-IN", { maximumFractionDigits: 2 });
+    const rows = customerState.value === "Karnataka"
+      ? [[`CGST (${(group.rate / 2).toLocaleString("en-IN", { maximumFractionDigits: 2 })}%)`, group.taxAmount / 2], [`SGST (${(group.rate / 2).toLocaleString("en-IN", { maximumFractionDigits: 2 })}%)`, group.taxAmount / 2]]
+      : [[`IGST (${rate}%)`, group.taxAmount]];
+    return rows.map(([label, amount]) => {
+      const row = document.createElement("div");
+      row.className = "summary-row";
+      const name = document.createElement("span");
+      name.textContent = label;
+      const value = document.createElement("strong");
+      value.textContent = formatMoney(amount);
+      row.append(name, value);
+      return row;
+    });
+  }));
+  document.getElementById("roundOff").textContent = formatMoney(totals.roundOff);
+  grandTotalDisplay.textContent = formatMoney(totals.payable, 0);
+  amountWords.textContent = numberToWords(totals.payable) + " Only";
+  try { localStorage.setItem("glassCareEstimate", JSON.stringify(estimateItems)); } catch { /* storage may be disabled */ }
+  persistDraft();
 }
 
 /* MONEY FORMAT */
 function formatMoney(value) {
-  return "₹" + Number(value || 0).toLocaleString("en-IN", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  });
+  return GlassCareCalculations.formatMoney(value);
 }
 
 /* AMOUNT IN WORDS */
@@ -836,10 +955,11 @@ function numberToWords(num) {
 }
 
 /* EVENTS */
-[height, width, quantity, rate, discountPercent, unitDisplay].forEach(el =>
+[height, width, thickness, quantity, rate, discountPercent, gstRateInput, unitDisplay].forEach(el =>
   el.addEventListener("input", updateCalculation)
 );
-customerState.addEventListener("change", updateTotals);
+customerState.addEventListener("change", () => { updateTotals(); persistDraft(); });
+document.getElementById("estimateDate").addEventListener("change", persistDraft);
 
 
 /* START */

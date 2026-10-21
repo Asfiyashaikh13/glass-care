@@ -7,18 +7,29 @@
     content="width=device-width, initial-scale=1.0"
   >
   <title>Glass Care Enterprises</title>
-  <link rel="stylesheet" href="style.css?v=mobile-pdf-1">
+  <link rel="stylesheet" href="style.css?v=document-system-3">
 </head>
 <body>
+<section class="auth-panel" id="authPanel" aria-labelledby="authHeading">
+  <img class="auth-logo" src="assets/glass-care-logo.jpeg" alt="Glass Care Enterprises logo">
+  <h1 id="authHeading">Glass Care Enterprises</h1>
+  <p>Sign in to access shared documents.</p>
+  <form id="authForm">
+    <label for="authEmail">Email</label>
+    <input id="authEmail" type="email" autocomplete="username" required>
+    <label for="authPassword">Password</label>
+    <input id="authPassword" type="password" autocomplete="current-password" required>
+    <button type="submit" class="primary-action">Sign in</button>
+  </form>
+  <p id="authStatus" class="auth-status" role="status" aria-live="polite"></p>
+</section>
+<div id="appShell" hidden>
 <header class="topbar">
   <div class="brand">
-    <div class="brand-icon">
-      ◈
-    </div>
+    <img class="brand-logo" src="assets/glass-care-logo.jpeg" alt="Glass Care Enterprises logo">
     <div>
-      <h1>GLASS CARE</h1>
-      <h2>ENTERPRISES</h2>
-      <p>PROFESSIONAL GLASS ESTIMATES</p>
+      <h1>GLASS CARE ENTERPRISES</h1>
+      <p>FRAME YOUR VISION</p>
     </div>
   </div>
   <div class="estimate-info">
@@ -36,18 +47,30 @@
     </div>
   </div>
   <div class="header-actions">
-    <button class="secondary-btn">
-      ⚙ Company
-    </button>
-    <button
-      class="print-btn"
-      onclick="window.print()"
-    >
-      🖨 Print Estimate
-    </button>
+      <button type="button" class="secondary-btn" id="companySettingsBtn">⚙ Document settings</button>
+      <span id="signedInAs" class="signed-in-as"></span>
+      <button type="button" class="secondary-btn" id="signOutButton" hidden>Sign out</button>
   </div>
 </header>
 <div class="container">
+  <section class="document-actions no-print" aria-label="Document actions">
+    <button type="button" class="primary-action" id="generateEstimateBtn">Generate Estimate PDF</button>
+    <button type="button" class="secondary-action" id="generateBillBtn">Generate Bill PDF</button>
+    <button type="button" class="primary-action" id="convertInvoiceBtn">Convert to Invoice</button>
+    <label class="notes-toggle"><input type="checkbox" id="generateNotes" checked> Generate Calculation Notes PDF</label>
+    <label class="terms-toggle"><input type="checkbox" id="includeTerms" checked> Include Terms &amp; Conditions</label>
+    <p id="documentStatus" class="document-status" role="status" aria-live="polite"></p>
+  </section>
+  <section class="settings-panel no-print" id="documentSettings" hidden>
+    <h2>Document settings</h2>
+    <label for="termsText">Terms &amp; Conditions (used on bills and invoices)</label>
+    <textarea id="termsText" rows="6"></textarea>
+    <button type="button" class="secondary-action" id="saveSettingsBtn">Save settings</button>
+  </section>
+  <section class="saved-documents no-print">
+    <h2>Saved documents</h2>
+    <div id="savedDocumentsList" class="saved-documents-list">No documents generated yet.</div>
+  </section>
   <!-- CUSTOMER -->
   <section class="customer-card">
     <h2>Customer & Project Details</h2>
@@ -107,18 +130,6 @@
               style="display:none;margin-top:8px;"
             >
           </div>
-          <div class="field">
-            <label>Factory / Vendor</label>
-            <select id="factory">
-              <option value="">-- Select factory --</option>
-              <option value="__custom__">＋ Type new factory...</option>
-            </select>
-            <input
-              id="factoryCustom"
-              placeholder="Type new factory name"
-              style="display:none;margin-top:8px;"
-            >
-          </div>
         </div>
         <div class="measurement-grid">
           <div class="field">
@@ -143,6 +154,10 @@
             >
           </div>
           <div class="field">
+            <label>Thickness / Depth (mm)</label>
+            <input type="number" id="thickness" placeholder="10" min="0" step="any">
+          </div>
+          <div class="field">
             <label>Quantity</label>
             <input
               type="number"
@@ -158,11 +173,16 @@
             <select id="unitDisplay">
               <option value="Sqft">Sqft</option>
               <option value="R.ft">R.ft</option>
+              <option value="Cubic Ft">Cubic Ft</option>
               <option value="Pcs">Pcs</option>
               <option value="Job">Job</option>
             </select>
           </div>
-          
+          <div class="field">
+            <label for="gstRate">GST Rate (%)</label>
+            <input type="number" id="gstRate" min="0" max="100" step="0.01" value="18">
+          </div>
+
           <div class="field">
             <label>Rate (₹) <span id="rateSourceTag" class="rate-tag"></span></label>
             <div class="rate-row">
@@ -221,7 +241,7 @@
           ⓘ Sqft amount: exact Height × Width × Qty ÷ 92,903.04 × Rate × (1 − Discount% ÷ 100). R.ft uses Perimeter × Qty ÷ 304.8 × Rate, then discount. Pcs/Job uses Qty × Rate, then discount. Discount is editable per item and applied before GST.
         </div>
         <div class="add-action">
-          <span id="calculationHint">
+          <span id="calculationHint" role="status" aria-live="polite">
             Fill in the item details above.
           </span>
           <button id="addItem">
@@ -250,10 +270,12 @@
                 <th>SIZE (mm)</th>
                 <th>UNIT</th>
                 <th>QTY</th>
-                <th>AREA / RUN FT</th>
+                <th>AREA / RUN FT / VOLUME</th>
                 <th>RATE (₹)</th>
                 <th>DISCOUNT (%)</th>
-                <th>AMOUNT (₹)</th>
+                <th>GST (%)</th>
+                <th>GST AMOUNT (₹)</th>
+                <th>TAXABLE AMOUNT (₹)</th>
                 <th>ACTION</th>
               </tr>
             </thead>
@@ -265,57 +287,29 @@
     </div>
     <!-- RIGHT -->
     <aside class="right-column">
-      <section class="summary-card">
-        <h2>▧ CALCULATION SUMMARY</h2>
-        <div class="summary-row">
-          <span>Calculation Basis</span>
-          <strong id="calculationBasis">
-            Select unit
-          </strong>
-        </div>
-        <div class="summary-row">
-          <span>Sqft area</span>
-          <strong>Exact dimensions, no rounding</strong>
-        </div>
-        <div class="summary-row">
-          <span>1 Foot</span>
-          <strong>304.8 mm</strong>
-        </div>
-        <div class="summary-row">
-          <span>1 Sqft</span>
-          <strong>92,903.04 mm²</strong>
-        </div>
-        <div class="summary-row">
-          <span>GST for Karnataka</span>
-          <strong>CGST 9% + SGST 9%</strong>
-        </div>
-        <div class="summary-row">
-          <span>Other States</span>
-          <strong>IGST 18%</strong>
-        </div>
-      </section>
       <section class="summary-card estimate-summary">
-        <h2>▣ ESTIMATE SUMMARY</h2>
+        <h2>▣ FINANCIAL SUMMARY</h2>
         <div class="summary-row">
-          <span>Subtotal</span>
+          <span>Gross subtotal</span>
+          <strong id="grossSubtotal">₹0.00</strong>
+        </div>
+        <div class="summary-row">
+          <span>Total discount</span>
+          <strong id="totalDiscount">− ₹0.00</strong>
+        </div>
+        <div class="summary-row">
+          <span>Taxable subtotal</span>
           <strong id="subtotal">
             ₹0.00
           </strong>
         </div>
+        <div id="taxBreakdownRows" aria-live="polite"></div>
         <div class="summary-row">
-          <span id="gst1Label">CGST (9%)</span>
-          <strong id="gst1">
-            ₹0.00
-          </strong>
-        </div>
-        <div class="summary-row">
-          <span id="gst2Label">SGST (9%)</span>
-          <strong id="gst2">
-            ₹0.00
-          </strong>
+          <span>Round Off</span>
+          <strong id="roundOff">₹0.00</strong>
         </div>
         <div class="grand-total">
-          <span>GRAND TOTAL</span>
+          <span>PAYABLE</span>
           <strong id="grandTotal">
             ₹0.00
           </strong>
@@ -330,7 +324,13 @@
     </aside>
   </div>
 </div>
-<script src="data.js?v=excel-discount-1"></script>
-<script src="script.js?v=rate-entry-2"></script>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-config.js?v=document-system-4"></script>
+<script src="supabase-store.js?v=document-system-4"></script>
+<script src="data.js?v=document-system-4"></script>
+<script src="calculations.js?v=document-system-4"></script>
+<script src="script.js?v=document-system-4"></script>
+<script src="documents.js?v=document-system-4"></script>
 </body>
 </html>

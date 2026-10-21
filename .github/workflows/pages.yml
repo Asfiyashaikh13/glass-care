@@ -30,7 +30,8 @@ jobs:
       - name: Prepare static site
         run: |
           mkdir -p _site
-          cp index.html data.js script.js style.css rates_from_excel.json _site/
+          cp index.html data.js calculations.js documents.js script.js style.css supabase-config.js supabase-store.js rates_from_excel.json _site/
+          cp -R assets _site/assets
           touch _site/.nojekyll
 
       - name: Upload Pages artifact
