@@ -1041,8 +1041,9 @@
       <span>•</span>
       <span>Total: ₹${formatRawNumber(totals.payable, 0)}</span>
     </div>
-    <div>
-      <button type="button" class="print-btn-primary" onclick="window.print()">🖨️ Print / Save as PDF</button>
+    <div style="display: flex; gap: 8px;">
+      <button type="button" class="print-btn-primary" onclick="window.parent && window.parent.downloadDocumentAsPdf ? window.parent.downloadDocumentAsPdf() : window.print()" style="background:#16a34a;">📥 Download PDF</button>
+      <button type="button" class="print-btn-primary" onclick="window.print()">🖨️ Print</button>
     </div>
   </div>
 
@@ -1602,8 +1603,82 @@
   });
 
   // Modal interactions
+  const modalDownloadBtn = document.getElementById("modalDownloadBtn");
+  if (modalDownloadBtn) {
+    modalDownloadBtn.addEventListener("click", () => {
+      downloadDocumentAsPdf(currentRecord, currentIsNotes);
+    });
+  }
+
+  async function downloadDocumentAsPdf(record = currentRecord, isNotes = currentIsNotes) {
+    if (!record) return;
+    const filename = `${record.number || record.type || "Document"}${isNotes ? "-Notes" : ""}.pdf`;
+    showStatus(`Generating ${filename} for download…`);
+
+    try {
+      let element = null;
+      if (pdfPreviewFrame?.contentDocument?.querySelector(".page-container")) {
+        element = pdfPreviewFrame.contentDocument.querySelector(".page-container");
+      } else {
+        const temp = document.createElement("div");
+        temp.style.position = "fixed";
+        temp.style.left = "-9999px";
+        temp.style.top = "0";
+        temp.style.width = "210mm";
+        temp.style.background = "#ffffff";
+        temp.innerHTML = documentHtml(record, isNotes, false);
+        temp.querySelectorAll(".no-print").forEach(el => el.remove());
+        document.body.appendChild(temp);
+        element = temp.querySelector(".page-container") || temp;
+      }
+
+      if (window.html2pdf) {
+        const opt = {
+          margin: [4, 6, 4, 6],
+          filename: filename,
+          image: { type: "jpeg", quality: 0.98 },
+          html2canvas: { scale: 2, useCORS: true, logging: false },
+          jsPDF: { unit: "mm", format: "a4", orientation: "portrait" }
+        };
+        await window.html2pdf().set(opt).from(element).save();
+        showStatus(`✓ Downloaded ${filename}!`);
+        return true;
+      }
+    } catch (err) {
+      console.warn("html2pdf generation error, falling back to direct download:", err);
+    }
+
+    // Direct download fallback
+    try {
+      const html = documentHtml(record, isNotes, false);
+      const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${record.number || record.type}.html`;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+        a.remove();
+        URL.revokeObjectURL(url);
+      }, 1000);
+      showStatus(`✓ Downloaded ${record.number || record.type}.html`);
+      return true;
+    } catch (e) {
+      showStatus(`Download failed: ${e.message}`, true);
+      return false;
+    }
+  }
+
+  window.downloadDocumentAsPdf = downloadDocumentAsPdf;
+
   if (modalPrintBtn) {
     modalPrintBtn.addEventListener("click", () => {
+      if (isMobileDevice()) {
+        // On Android Chrome, iframe printing is not supported, so directly download the PDF
+        downloadDocumentAsPdf(currentRecord, currentIsNotes);
+        return;
+      }
       try {
         if (pdfPreviewFrame?.contentWindow) {
           pdfPreviewFrame.contentWindow.focus();
