@@ -1,5 +1,6 @@
--- Glass Care single-client document storage. Run once in Supabase SQL Editor.
+-- Glass Care single-client document storage. Run in Supabase SQL Editor.
 -- Access is restricted to authenticated users, with every row owned by its creator.
+
 create table if not exists public.glass_care_documents (
   id text not null,
   owner_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
@@ -13,6 +14,10 @@ create table if not exists public.glass_care_documents (
   unique (owner_id, document_number)
 );
 
+-- Ensure default auth.uid() is set even if the table already existed previously
+alter table public.glass_care_documents 
+  alter column owner_id set default auth.uid();
+
 create index if not exists glass_care_documents_owner_created_idx
   on public.glass_care_documents (owner_id, created_at desc);
 
@@ -20,41 +25,60 @@ alter table public.glass_care_documents enable row level security;
 revoke all on table public.glass_care_documents from anon, authenticated;
 grant select, insert, update, delete on table public.glass_care_documents to authenticated;
 
+-- Policies for glass_care_documents (idempotent drops and creates)
+drop policy if exists "Users read their Glass Care documents" on public.glass_care_documents;
 create policy "Users read their Glass Care documents"
   on public.glass_care_documents for select to authenticated
   using ((select auth.uid()) = owner_id);
+
+drop policy if exists "Users create their Glass Care documents" on public.glass_care_documents;
 create policy "Users create their Glass Care documents"
   on public.glass_care_documents for insert to authenticated
-  with check ((select auth.uid()) = owner_id);
+  with check ((select auth.uid()) = coalesce(owner_id, (select auth.uid())));
+
+drop policy if exists "Users update their Glass Care documents" on public.glass_care_documents;
 create policy "Users update their Glass Care documents"
   on public.glass_care_documents for update to authenticated
   using ((select auth.uid()) = owner_id)
-  with check ((select auth.uid()) = owner_id);
+  with check ((select auth.uid()) = coalesce(owner_id, (select auth.uid())));
+
+drop policy if exists "Users delete their Glass Care documents" on public.glass_care_documents;
 create policy "Users delete their Glass Care documents"
   on public.glass_care_documents for delete to authenticated
   using ((select auth.uid()) = owner_id);
 
+-- Settings table
 create table if not exists public.glass_care_settings (
   owner_id uuid primary key default auth.uid() references auth.users(id) on delete cascade,
   payload jsonb not null default '{}'::jsonb,
   updated_at timestamptz not null default now()
 );
 
+-- Ensure default auth.uid() is set even if the table already existed previously
+alter table public.glass_care_settings 
+  alter column owner_id set default auth.uid();
+
 alter table public.glass_care_settings enable row level security;
 revoke all on table public.glass_care_settings from anon, authenticated;
 grant select, insert, update on table public.glass_care_settings to authenticated;
 
+drop policy if exists "Users read their Glass Care settings" on public.glass_care_settings;
 create policy "Users read their Glass Care settings"
   on public.glass_care_settings for select to authenticated
   using ((select auth.uid()) = owner_id);
+
+drop policy if exists "Users create their Glass Care settings" on public.glass_care_settings;
 create policy "Users create their Glass Care settings"
   on public.glass_care_settings for insert to authenticated
-  with check ((select auth.uid()) = owner_id);
+  with check ((select auth.uid()) = coalesce(owner_id, (select auth.uid())));
+
+drop policy if exists "Users update their Glass Care settings" on public.glass_care_settings;
 create policy "Users update their Glass Care settings"
   on public.glass_care_settings for update to authenticated
   using ((select auth.uid()) = owner_id)
-  with check ((select auth.uid()) = owner_id);
+  with check ((select auth.uid()) = coalesce(owner_id, (select auth.uid())));
 
+-- Counters table
 create table if not exists public.glass_care_counters (
   owner_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
   counter_type text not null check (counter_type in ('Estimate', 'Bill', 'Invoice', 'Calculation')),
@@ -62,20 +86,31 @@ create table if not exists public.glass_care_counters (
   primary key (owner_id, counter_type)
 );
 
+-- Ensure default auth.uid() is set even if the table already existed previously
+alter table public.glass_care_counters 
+  alter column owner_id set default auth.uid();
+
 alter table public.glass_care_counters enable row level security;
 revoke all on table public.glass_care_counters from anon, authenticated;
 grant select, insert, update on table public.glass_care_counters to authenticated;
+
+drop policy if exists "Users read their Glass Care counters" on public.glass_care_counters;
 create policy "Users read their Glass Care counters"
   on public.glass_care_counters for select to authenticated
   using ((select auth.uid()) = owner_id);
+
+drop policy if exists "Users create their Glass Care counters" on public.glass_care_counters;
 create policy "Users create their Glass Care counters"
   on public.glass_care_counters for insert to authenticated
-  with check ((select auth.uid()) = owner_id);
+  with check ((select auth.uid()) = coalesce(owner_id, (select auth.uid())));
+
+drop policy if exists "Users increment their Glass Care counters" on public.glass_care_counters;
 create policy "Users increment their Glass Care counters"
   on public.glass_care_counters for update to authenticated
   using ((select auth.uid()) = owner_id)
-  with check ((select auth.uid()) = owner_id);
+  with check ((select auth.uid()) = coalesce(owner_id, (select auth.uid())));
 
+-- Counter sequence RPC
 create or replace function public.next_glass_care_number(p_type text)
 returns text
 language plpgsql
@@ -118,5 +153,6 @@ begin
   return 'GCE-' || p_type || '-' || lpad(next_value::text, 3, '0');
 end;
 $$;
+
 revoke all on function public.next_glass_care_number(text) from public, anon;
 grant execute on function public.next_glass_care_number(text) to authenticated;

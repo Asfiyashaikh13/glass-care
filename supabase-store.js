@@ -42,11 +42,27 @@
     const localDocuments = readLocalJson("glassCareDocuments", []);
     const remoteIds = new Set(remoteDocuments.map(record => record.id));
     const pendingDocuments = localDocuments.filter(record => !remoteIds.has(record.id));
-    for (const record of pendingDocuments) await saveDocument(record);
+    
+    // Sync any pending local documents with graceful per-document fallback
+    const syncedDocuments = [];
+    for (const record of pendingDocuments) {
+      try {
+        await saveDocument(record);
+        syncedDocuments.push(record);
+      } catch (e) {
+        console.warn("Could not sync local document to Supabase:", record.id, e);
+      }
+    }
 
-    const documents = [...pendingDocuments, ...remoteDocuments];
+    const documents = [...syncedDocuments, ...remoteDocuments];
     const settings = settingsResult.data?.payload || readLocalJson("glassCareDocumentSettings", {});
-    if (!settingsResult.data && Object.keys(settings).length) await saveSettings(settings);
+    if (!settingsResult.data && Object.keys(settings).length) {
+      try {
+        await saveSettings(settings);
+      } catch (e) {
+        console.warn("Could not sync local settings to Supabase:", e);
+      }
+    }
     localStorage.setItem("glassCareDocuments", JSON.stringify(documents));
     localStorage.setItem("glassCareDocumentSettings", JSON.stringify(settings));
     window.dispatchEvent(new CustomEvent("glasscare:cloud-ready", {
@@ -59,10 +75,20 @@
     catch { return fallback; }
   }
 
+  async function getAuthenticatedUserId() {
+    if (currentUser?.id) return currentUser.id;
+    const { data } = await client.auth.getUser();
+    return data?.user?.id || null;
+  }
+
   async function saveDocument(record) {
+    const userId = await getAuthenticatedUserId();
+    if (!userId) throw new Error("Authentication required to save document");
+    const docType = ["Estimate", "Bill", "Invoice"].includes(record.type) ? record.type : "Estimate";
     const { error } = await client.from("glass_care_documents").upsert({
-      id: record.id,
-      document_type: record.type,
+      owner_id: userId,
+      id: String(record.id),
+      document_type: docType,
       document_number: record.number,
       source_id: record.sourceId || null,
       payload: record
@@ -74,7 +100,12 @@
   }
 
   async function saveSettings(settings) {
-    const { error } = await client.from("glass_care_settings").upsert({ payload: settings }, { onConflict: "owner_id" });
+    const userId = await getAuthenticatedUserId();
+    if (!userId) throw new Error("Authentication required to save settings");
+    const { error } = await client.from("glass_care_settings").upsert({
+      owner_id: userId,
+      payload: settings
+    }, { onConflict: "owner_id" });
     if (error) throw error;
     localStorage.setItem("glassCareDocumentSettings", JSON.stringify(settings));
   }

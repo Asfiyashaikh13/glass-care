@@ -395,8 +395,10 @@ function initialize() {
 
   ["customerName", "flatNo", "buildingName", "customerPhone"].forEach(id => {
     const field = document.getElementById(id);
-    field.value = savedDraft[id] || "";
-    field.addEventListener("input", persistDraft);
+    if (field) {
+      field.value = savedDraft[id] || "";
+      field.addEventListener("input", persistDraft);
+    }
   });
   if (savedDraft.state && states.includes(savedDraft.state)) customerState.value = savedDraft.state;
 
@@ -410,11 +412,11 @@ function initialize() {
 
 function persistDraft() {
   const draft = {
-    customerName: document.getElementById("customerName").value,
-    flatNo: document.getElementById("flatNo").value,
-    buildingName: document.getElementById("buildingName").value,
-    customerPhone: document.getElementById("customerPhone").value,
-    date: document.getElementById("estimateDate").value,
+    customerName: document.getElementById("customerName")?.value || "",
+    flatNo: document.getElementById("flatNo")?.value || "",
+    buildingName: document.getElementById("buildingName")?.value || "",
+    customerPhone: document.getElementById("customerPhone")?.value || "",
+    date: document.getElementById("estimateDate")?.value || "",
     state: customerState.value
   };
   try { localStorage.setItem("glassCareDraft", JSON.stringify(draft)); } catch { /* storage may be disabled */ }

@@ -30,6 +30,9 @@
     <div>
       <h1>GLASS CARE ENTERPRISES</h1>
       <p>FRAME YOUR VISION</p>
+      <div class="company-gstin-header">
+        <span class="gstin-label">GSTIN:</span> <span class="gstin-val">29BNYPN6916L1ZU</span>
+      </div>
     </div>
   </div>
   <div class="estimate-info">
@@ -47,14 +50,23 @@
     </div>
   </div>
   <div class="header-actions">
+      <a href="#savedDocumentsSection" class="secondary-btn" id="savedDocsLink" style="text-decoration: none; display: inline-flex; align-items: center;">📂 Saved documents</a>
       <button type="button" class="secondary-btn" id="companySettingsBtn">⚙ Document settings</button>
-      <span id="signedInAs" class="signed-in-as"></span>
+      <div class="user-profile-badge" id="userProfileBadge" title="Signed in account">
+        <span class="user-avatar-circle" aria-hidden="true">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+            <circle cx="12" cy="7" r="4"></circle>
+          </svg>
+        </span>
+        <span class="user-status-dot" aria-hidden="true"></span>
+        <span id="signedInAs" class="signed-in-as"></span>
+      </div>
       <button type="button" class="secondary-btn" id="signOutButton" hidden>Sign out</button>
   </div>
 </header>
 <div class="container">
   <section class="document-actions no-print" aria-label="Document actions">
-    <button type="button" class="primary-action" id="generateEstimateBtn">Generate Estimate PDF</button>
     <button type="button" class="secondary-action" id="generateBillBtn">Generate Bill PDF</button>
     <button type="button" class="primary-action" id="convertInvoiceBtn">Convert to Invoice</button>
     <label class="notes-toggle"><input type="checkbox" id="generateNotes" checked> Generate Calculation Notes PDF</label>
@@ -66,10 +78,6 @@
     <label for="termsText">Terms &amp; Conditions (used on bills and invoices)</label>
     <textarea id="termsText" rows="6"></textarea>
     <button type="button" class="secondary-action" id="saveSettingsBtn">Save settings</button>
-  </section>
-  <section class="saved-documents no-print">
-    <h2>Saved documents</h2>
-    <div id="savedDocumentsList" class="saved-documents-list">No documents generated yet.</div>
   </section>
   <!-- CUSTOMER -->
   <section class="customer-card">
@@ -323,7 +331,45 @@
       </section>
     </aside>
   </div>
+  <section class="saved-documents no-print" id="savedDocumentsSection">
+    <h2>Saved documents</h2>
+    <div class="saved-documents-controls">
+      <input
+        type="search"
+        id="savedDocsSearch"
+        class="saved-docs-search"
+        placeholder="Search by number or customer name…"
+        aria-label="Search saved documents"
+      >
+      <div class="saved-docs-tabs" role="tablist" aria-label="Filter documents by type">
+        <button type="button" class="saved-docs-tab active" data-filter="all" role="tab" aria-selected="true">All</button>
+        <button type="button" class="saved-docs-tab" data-filter="Estimate" role="tab" aria-selected="false">Estimates</button>
+        <button type="button" class="saved-docs-tab" data-filter="Bill" role="tab" aria-selected="false">Bills</button>
+        <button type="button" class="saved-docs-tab" data-filter="Invoice" role="tab" aria-selected="false">Invoices</button>
+      </div>
+    </div>
+    <div id="savedDocumentsList" class="saved-documents-list">No documents generated yet.</div>
+  </section>
 </div>
+</div>
+<div id="pdfModal" class="pdf-modal no-print" hidden>
+  <div class="pdf-modal-backdrop" id="pdfModalBackdrop"></div>
+  <div class="pdf-modal-dialog">
+    <div class="pdf-modal-header">
+      <div class="pdf-modal-title-row">
+        <h2 id="pdfModalTitle">Document Preview</h2>
+        <span class="pdf-modal-subtitle">Tax invoice &amp; document preview</span>
+      </div>
+      <div class="pdf-modal-actions">
+        <button type="button" class="primary-action" id="modalPrintBtn">🖨️ Print / Save as PDF</button>
+        <button type="button" class="secondary-action" id="modalNewTabBtn">↗ Open in New Window</button>
+        <button type="button" class="secondary-btn" id="modalCloseBtn">✕ Close</button>
+      </div>
+    </div>
+    <div class="pdf-modal-body">
+      <iframe id="pdfPreviewFrame" title="Document Preview Frame"></iframe>
+    </div>
+  </div>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="supabase-config.js?v=document-system-4"></script>
