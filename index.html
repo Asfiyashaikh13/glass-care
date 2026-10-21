@@ -13,13 +13,27 @@
 <section class="auth-panel" id="authPanel" aria-labelledby="authHeading">
   <img class="auth-logo" src="assets/glass-care-logo.jpeg" alt="Glass Care Enterprises logo">
   <h1 id="authHeading">Glass Care Enterprises</h1>
-  <p>Sign in to access shared documents.</p>
+  <p id="authSubheading">Sign in to access shared documents.</p>
   <form id="authForm">
     <label for="authEmail">Email</label>
     <input id="authEmail" type="email" autocomplete="username" required>
-    <label for="authPassword">Password</label>
+    <div class="auth-password-header">
+      <label for="authPassword">Password</label>
+      <button type="button" class="auth-link-btn" id="forgotPasswordLink">Forgot password?</button>
+    </div>
     <input id="authPassword" type="password" autocomplete="current-password" required>
     <button type="submit" class="primary-action">Sign in</button>
+  </form>
+  <form id="forgotPasswordForm" hidden>
+    <label for="forgotEmail">Account Email</label>
+    <input id="forgotEmail" type="email" autocomplete="email" placeholder="name@company.com" required>
+    <button type="submit" class="primary-action">Send Reset Link</button>
+    <button type="button" class="secondary-btn auth-back-btn" id="backToSignInBtn">← Back to Sign in</button>
+  </form>
+  <form id="updatePasswordForm" hidden>
+    <label for="newPassword">New Password</label>
+    <input id="newPassword" type="password" minlength="6" placeholder="At least 6 characters" required>
+    <button type="submit" class="primary-action">Set New Password</button>
   </form>
   <p id="authStatus" class="auth-status" role="status" aria-live="polite"></p>
 </section>

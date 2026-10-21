@@ -6,6 +6,13 @@
   const appShell = document.getElementById("appShell");
   const authForm = document.getElementById("authForm");
   const authStatus = document.getElementById("authStatus");
+  const authSubheading = document.getElementById("authSubheading");
+  const forgotPasswordLink = document.getElementById("forgotPasswordLink");
+  const forgotPasswordForm = document.getElementById("forgotPasswordForm");
+  const forgotEmail = document.getElementById("forgotEmail");
+  const backToSignInBtn = document.getElementById("backToSignInBtn");
+  const updatePasswordForm = document.getElementById("updatePasswordForm");
+  const newPassword = document.getElementById("newPassword");
   const signOutButton = document.getElementById("signOutButton");
   const client = window.supabase.createClient(config.url, config.publishableKey, {
     auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
@@ -148,6 +155,80 @@
     if (error) setStatus(error.message, true);
   });
 
+  if (forgotPasswordLink) {
+    forgotPasswordLink.addEventListener("click", () => {
+      authForm.hidden = true;
+      if (forgotPasswordForm) forgotPasswordForm.hidden = false;
+      if (updatePasswordForm) updatePasswordForm.hidden = true;
+      if (authSubheading) authSubheading.textContent = "Reset your password via email.";
+      if (forgotEmail) {
+        forgotEmail.value = document.getElementById("authEmail")?.value?.trim() || "";
+        forgotEmail.focus();
+      }
+      setStatus("");
+    });
+  }
+
+  if (backToSignInBtn) {
+    backToSignInBtn.addEventListener("click", () => {
+      if (forgotPasswordForm) forgotPasswordForm.hidden = true;
+      if (updatePasswordForm) updatePasswordForm.hidden = true;
+      authForm.hidden = false;
+      if (authSubheading) authSubheading.textContent = "Sign in to access shared documents.";
+      setStatus("");
+    });
+  }
+
+  if (forgotPasswordForm) {
+    forgotPasswordForm.addEventListener("submit", async event => {
+      event.preventDefault();
+      const email = forgotEmail?.value?.trim();
+      if (!email) return;
+
+      const submitBtn = forgotPasswordForm.querySelector("button[type=submit]");
+      if (submitBtn) submitBtn.disabled = true;
+      setStatus("Sending password reset email…");
+
+      const redirectTo = window.location.origin + window.location.pathname;
+      const { error } = await client.auth.resetPasswordForEmail(email, {
+        redirectTo
+      });
+
+      if (submitBtn) submitBtn.disabled = false;
+      if (error) {
+        setStatus(error.message, true);
+      } else {
+        setStatus(`Password reset link sent to ${email}! Please check your email inbox.`);
+      }
+    });
+  }
+
+  if (updatePasswordForm) {
+    updatePasswordForm.addEventListener("submit", async event => {
+      event.preventDefault();
+      const pwd = newPassword?.value;
+      if (!pwd || pwd.length < 6) {
+        setStatus("Password must be at least 6 characters.", true);
+        return;
+      }
+      const submitBtn = updatePasswordForm.querySelector("button[type=submit]");
+      if (submitBtn) submitBtn.disabled = true;
+      setStatus("Updating password…");
+
+      const { error } = await client.auth.updateUser({ password: pwd });
+      if (submitBtn) submitBtn.disabled = false;
+
+      if (error) {
+        setStatus(error.message, true);
+      } else {
+        setStatus("Password updated successfully! Please sign in with your new password.");
+        updatePasswordForm.hidden = true;
+        authForm.hidden = false;
+        if (authSubheading) authSubheading.textContent = "Sign in to access shared documents.";
+      }
+    });
+  }
+
   function activateSession(user) {
     if (!user) {
       showSignedIn(null);
@@ -169,6 +250,16 @@
 
   client.auth.onAuthStateChange((event, session) => {
     if (event === "INITIAL_SESSION") return;
+    if (event === "PASSWORD_RECOVERY") {
+      authPanel.hidden = false;
+      appShell.hidden = true;
+      authForm.hidden = true;
+      if (forgotPasswordForm) forgotPasswordForm.hidden = true;
+      if (updatePasswordForm) updatePasswordForm.hidden = false;
+      if (authSubheading) authSubheading.textContent = "Set a new password for your account.";
+      setStatus("Enter your new password below.");
+      return;
+    }
     if (event === "SIGNED_IN") {
       try {
         localStorage.removeItem("glassCareEstimate");
