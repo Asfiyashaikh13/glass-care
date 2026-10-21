@@ -189,7 +189,11 @@
       if (submitBtn) submitBtn.disabled = true;
       setStatus("Sending password reset email…");
 
-      const redirectTo = window.location.origin + window.location.pathname;
+      // Ensure redirect always points to the live website so email links work everywhere (avoiding file:// or localhost)
+      const isLiveSite = window.location.protocol === "https:" && !window.location.hostname.includes("localhost");
+      const redirectTo = isLiveSite
+        ? (window.location.origin + window.location.pathname)
+        : "https://asfiyashaikh13.github.io/glass-care/";
       const { error } = await client.auth.resetPasswordForEmail(email, {
         redirectTo
       });
