@@ -1209,6 +1209,17 @@
     }
   }
 
+  function isIOS() {
+    try {
+      return (
+        /iPhone|iPad|iPod/i.test(navigator.userAgent) ||
+        (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)
+      );
+    } catch {
+      return false;
+    }
+  }
+
   function showDocumentInModal(record, isNotes = false, htmlPrecomputed = null) {
     currentRecord = record;
     currentIsNotes = !!isNotes;
@@ -1613,7 +1624,18 @@
   async function downloadDocumentAsPdf(record = currentRecord, isNotes = currentIsNotes) {
     if (!record) return;
     const filename = `${record.number || record.type || "Document"}${isNotes ? "-Notes" : ""}.pdf`;
-    showStatus(`Generating ${filename} for download…`);
+    showStatus(`Preparing ${filename}…`);
+
+    // On iOS Safari, pre-open a blank popup synchronously to prevent popup blocker
+    let iosWindow = null;
+    if (isIOS()) {
+      try {
+        iosWindow = window.open("", "_blank");
+        if (iosWindow) {
+          iosWindow.document.write("<!doctype html><title>Preparing PDF…</title><body style='font-family:-apple-system,BlinkMacSystemFont,sans-serif;padding:32px;color:#1e293b;text-align:center;'><h3>Preparing your PDF…</h3><p style='color:#64748b;'>Your document will open automatically in a moment.</p></body>");
+        }
+      } catch (e) {}
+    }
 
     try {
       let element = null;
@@ -1640,12 +1662,29 @@
           html2canvas: { scale: 2, useCORS: true, logging: false },
           jsPDF: { unit: "mm", format: "a4", orientation: "portrait" }
         };
-        await window.html2pdf().set(opt).from(element).save();
-        showStatus(`✓ Downloaded ${filename}!`);
-        return true;
+
+        if (isIOS()) {
+          // On iPhone/iPad, generate a true PDF Blob and open in Apple's native viewer
+          const worker = window.html2pdf().set(opt).from(element);
+          const pdfBlob = await worker.outputPdf("blob");
+          const pdfUrl = URL.createObjectURL(pdfBlob);
+          if (iosWindow && !iosWindow.closed) {
+            iosWindow.location.href = pdfUrl;
+          } else {
+            window.open(pdfUrl, "_blank") || (window.location.href = pdfUrl);
+          }
+          showStatus(`✓ PDF opened! Tap the Share icon (↑) → “Save to Files” on iPhone.`);
+          return true;
+        } else {
+          // On Android and Desktop, trigger direct download
+          await window.html2pdf().set(opt).from(element).save();
+          showStatus(`✓ Downloaded ${filename}!`);
+          return true;
+        }
       }
     } catch (err) {
-      console.warn("html2pdf generation error, falling back to direct download:", err);
+      console.warn("html2pdf generation error, falling back:", err);
+      if (iosWindow && !iosWindow.closed) iosWindow.close();
     }
 
     // Direct download fallback
@@ -1653,16 +1692,24 @@
       const html = documentHtml(record, isNotes, false);
       const blob = new Blob([html], { type: "text/html;charset=utf-8" });
       const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${record.number || record.type}.html`;
-      document.body.appendChild(a);
-      a.click();
-      setTimeout(() => {
-        a.remove();
-        URL.revokeObjectURL(url);
-      }, 1000);
-      showStatus(`✓ Downloaded ${record.number || record.type}.html`);
+      if (isIOS()) {
+        if (iosWindow && !iosWindow.closed) {
+          iosWindow.location.href = url;
+        } else {
+          window.open(url, "_blank") || (window.location.href = url);
+        }
+      } else {
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `${record.number || record.type}.html`;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => {
+          a.remove();
+          URL.revokeObjectURL(url);
+        }, 1000);
+      }
+      showStatus(`✓ Document ready.`);
       return true;
     } catch (e) {
       showStatus(`Download failed: ${e.message}`, true);
