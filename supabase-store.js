@@ -252,19 +252,33 @@
     });
   }
 
+  function isRecoveryMode() {
+    const hash = window.location.hash || "";
+    const search = window.location.search || "";
+    return hash.includes("type=recovery") || search.includes("type=recovery");
+  }
+
+  function showRecoveryScreen() {
+    authPanel.hidden = false;
+    appShell.hidden = true;
+    authForm.hidden = true;
+    if (forgotPasswordForm) forgotPasswordForm.hidden = true;
+    if (updatePasswordForm) updatePasswordForm.hidden = false;
+    if (authSubheading) authSubheading.textContent = "Set a new password for your account.";
+    setStatus("Enter your new password below.");
+  }
+
   client.auth.onAuthStateChange((event, session) => {
     if (event === "INITIAL_SESSION") return;
-    if (event === "PASSWORD_RECOVERY") {
-      authPanel.hidden = false;
-      appShell.hidden = true;
-      authForm.hidden = true;
-      if (forgotPasswordForm) forgotPasswordForm.hidden = true;
-      if (updatePasswordForm) updatePasswordForm.hidden = false;
-      if (authSubheading) authSubheading.textContent = "Set a new password for your account.";
-      setStatus("Enter your new password below.");
+    if (event === "PASSWORD_RECOVERY" || isRecoveryMode()) {
+      showRecoveryScreen();
       return;
     }
     if (event === "SIGNED_IN") {
+      if (isRecoveryMode()) {
+        showRecoveryScreen();
+        return;
+      }
       try {
         localStorage.removeItem("glassCareEstimate");
         localStorage.removeItem("glassCareDraft");
@@ -274,10 +288,14 @@
     activateSession(session?.user || null);
   });
 
-  client.auth.getSession().then(({ data, error }) => {
-    if (error) throw error;
-    activateSession(data.session?.user || null);
-  }).catch(error => setStatus(error.message, true));
+  if (isRecoveryMode()) {
+    showRecoveryScreen();
+  } else {
+    client.auth.getSession().then(({ data, error }) => {
+      if (error) throw error;
+      activateSession(data.session?.user || null);
+    }).catch(error => setStatus(error.message, true));
+  }
 
   window.GlassCareStore = {
     client,
