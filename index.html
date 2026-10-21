@@ -81,8 +81,8 @@
 </header>
 <div class="container">
   <section class="document-actions no-print" aria-label="Document actions">
-    <button type="button" class="secondary-action" id="generateBillBtn">Generate Bill PDF</button>
-    <button type="button" class="primary-action" id="convertInvoiceBtn">Convert to Invoice</button>
+    <button type="button" class="primary-action" id="generateInvoiceBtn">Generate Invoice PDF</button>
+    <button type="button" class="secondary-action" id="convertInvoiceBtn">Convert to Invoice</button>
     <label class="notes-toggle"><input type="checkbox" id="generateNotes" checked> Generate Calculation Notes PDF</label>
     <label class="terms-toggle"><input type="checkbox" id="includeTerms" checked> Include Terms &amp; Conditions</label>
     <p id="documentStatus" class="document-status" role="status" aria-live="polite"></p>
@@ -113,6 +113,15 @@
         id="customerPhone"
         placeholder="Phone Number"
       >
+      <input
+        id="customerGstin"
+        placeholder="Customer GSTIN (e.g. 29ABCDE1234F1Z5)"
+      >
+      <select id="paymentMode" title="Payment Mode / Status">
+        <option value="Paid">Payment Status: Paid</option>
+        <option value="In Progress">Payment Status: In Progress</option>
+        <option value="Due">Payment Status: Due</option>
+      </select>
     </div>
   </section>
   <div class="main-layout">

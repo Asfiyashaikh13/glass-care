@@ -393,11 +393,12 @@ function initialize() {
   });
   customerState.value = states[0] || "";
 
-  ["customerName", "flatNo", "buildingName", "customerPhone"].forEach(id => {
+  ["customerName", "flatNo", "buildingName", "customerPhone", "customerGstin", "paymentMode"].forEach(id => {
     const field = document.getElementById(id);
     if (field) {
-      field.value = savedDraft[id] || "";
+      if (savedDraft[id] != null) field.value = savedDraft[id];
       field.addEventListener("input", persistDraft);
+      field.addEventListener("change", persistDraft);
     }
   });
   if (savedDraft.state && states.includes(savedDraft.state)) customerState.value = savedDraft.state;
@@ -416,6 +417,8 @@ function persistDraft() {
     flatNo: document.getElementById("flatNo")?.value || "",
     buildingName: document.getElementById("buildingName")?.value || "",
     customerPhone: document.getElementById("customerPhone")?.value || "",
+    customerGstin: document.getElementById("customerGstin")?.value || "",
+    paymentMode: document.getElementById("paymentMode")?.value || "Paid",
     date: document.getElementById("estimateDate")?.value || "",
     state: customerState.value
   };
@@ -904,10 +907,12 @@ function resetEstimateForm(clearCustomer = true) {
   } catch (e) {}
 
   if (clearCustomer) {
-    ["customerName", "flatNo", "buildingName", "customerPhone"].forEach(id => {
+    ["customerName", "flatNo", "buildingName", "customerPhone", "customerGstin"].forEach(id => {
       const field = document.getElementById(id);
       if (field) field.value = "";
     });
+    const paymentSelect = document.getElementById("paymentMode");
+    if (paymentSelect) paymentSelect.value = "Paid";
     const dateField = document.getElementById("estimateDate");
     if (dateField) dateField.value = new Date().toISOString().split("T")[0];
     if (customerState && states.length) customerState.value = states[0] || "Karnataka";
@@ -916,9 +921,15 @@ function resetEstimateForm(clearCustomer = true) {
   if (categorySelect) categorySelect.value = "";
   if (categoryCustom) { categoryCustom.style.display = "none"; categoryCustom.value = ""; }
   if (itemNameSelect) {
-    itemNameSelect.innerHTML = '<option value="">-- Select item --</option>';
+    if (itemNameSelect.options.length <= 2) {
+      itemNameSelect.innerHTML = `
+        <option value="">-- Select item --</option>
+        <option value="__custom__">＋ Type new item...</option>
+      `;
+      fillSelect(itemNameSelect, itemNames, true);
+    }
     itemNameSelect.value = "";
-    itemNameSelect.disabled = true;
+    itemNameSelect.disabled = false;
   }
   if (itemNameCustom) { itemNameCustom.style.display = "none"; itemNameCustom.value = ""; }
   if (height) height.value = "";
@@ -946,7 +957,7 @@ window.GlassCareEstimate = {
 /* CLEAR ALL / NEW ESTIMATE */
 document.getElementById("clearAll")?.addEventListener("click", function () {
   const hasData = estimateItems.length > 0 ||
-    ["customerName", "flatNo", "buildingName", "customerPhone"].some(id => document.getElementById(id)?.value?.trim());
+    ["customerName", "flatNo", "buildingName", "customerPhone", "customerGstin"].some(id => document.getElementById(id)?.value?.trim());
   if (hasData) {
     if (confirm("Start a new estimate? Current unsaved items and customer details will be cleared.")) {
       resetEstimateForm(true);
