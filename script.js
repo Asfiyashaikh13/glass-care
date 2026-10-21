@@ -597,8 +597,10 @@ function renderEstimate() {
   if (estimateItems.length === 0) {
     estimateBody.innerHTML = `
       <tr>
-        <td colspan="12" style="text-align:center;padding:35px;color:#7b8795;">
-          No items added yet.
+        <td colspan="12" style="text-align:center;padding:48px 20px;color:#64748b;font-size:13.5px;background:#f8fafc;">
+          <div style="font-size:26px;margin-bottom:8px;">📋</div>
+          <strong style="color:#1e293b;font-size:15px;display:block;margin-bottom:4px;">No items added to current estimate</strong>
+          <span style="color:#64748b;">Select a product category and enter dimensions above, then click <b>“+ ADD ITEM TO ESTIMATE”</b>.</span>
         </td>
       </tr>
     `;
@@ -893,12 +895,64 @@ function deleteItem(id) {
   renderEstimate();
 }
 
-/* CLEAR */
-document.getElementById("clearAll").addEventListener("click", function () {
-  if (estimateItems.length === 0) return;
-  if (confirm("Clear all items from this estimate?")) {
-    estimateItems = [];
-    renderEstimate();
+/* RESET ESTIMATE FORM */
+function resetEstimateForm(clearCustomer = true) {
+  estimateItems = [];
+  try {
+    localStorage.removeItem("glassCareEstimate");
+    localStorage.removeItem("glassCareDraft");
+  } catch (e) {}
+
+  if (clearCustomer) {
+    ["customerName", "flatNo", "buildingName", "customerPhone"].forEach(id => {
+      const field = document.getElementById(id);
+      if (field) field.value = "";
+    });
+    const dateField = document.getElementById("estimateDate");
+    if (dateField) dateField.value = new Date().toISOString().split("T")[0];
+    if (customerState && states.length) customerState.value = states[0] || "Karnataka";
+  }
+
+  if (categorySelect) categorySelect.value = "";
+  if (categoryCustom) { categoryCustom.style.display = "none"; categoryCustom.value = ""; }
+  if (itemNameSelect) {
+    itemNameSelect.innerHTML = '<option value="">-- Select item --</option>';
+    itemNameSelect.value = "";
+    itemNameSelect.disabled = true;
+  }
+  if (itemNameCustom) { itemNameCustom.style.display = "none"; itemNameCustom.value = ""; }
+  if (height) height.value = "";
+  if (width) width.value = "";
+  if (thickness) thickness.value = "";
+  if (quantity) quantity.value = 1;
+  const unitSelectEl = document.getElementById("unit");
+  if (unitSelectEl) unitSelectEl.value = "Sqft";
+  if (gstRateInput) gstRateInput.value = "18";
+  if (rate) rate.value = "";
+  if (discountPercent) discountPercent.value = "0";
+
+  const estNum = document.getElementById("estimateNumber");
+  if (estNum) estNum.textContent = generateEstimateNumber();
+
+  renderEstimate();
+  updateCalculation();
+}
+
+window.GlassCareEstimate = {
+  reset: resetEstimateForm,
+  get items() { return estimateItems; }
+};
+
+/* CLEAR ALL / NEW ESTIMATE */
+document.getElementById("clearAll")?.addEventListener("click", function () {
+  const hasData = estimateItems.length > 0 ||
+    ["customerName", "flatNo", "buildingName", "customerPhone"].some(id => document.getElementById(id)?.value?.trim());
+  if (hasData) {
+    if (confirm("Start a new estimate? Current unsaved items and customer details will be cleared.")) {
+      resetEstimateForm(true);
+    }
+  } else {
+    resetEstimateForm(true);
   }
 });
 

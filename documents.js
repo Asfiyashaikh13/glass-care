@@ -1082,6 +1082,15 @@
     openPdf(savedRecord, false, false, popup);
     showStatus(`${type} ${savedRecord.number} is ready. View on screen or choose “Print / Save as PDF”.`);
 
+    // Once a bill is successfully saved, clear the active estimate form for the next customer
+    if (type === "Bill") {
+      try {
+        localStorage.removeItem("glassCareEstimate");
+        localStorage.removeItem("glassCareDraft");
+      } catch (e) {}
+      window.GlassCareEstimate?.reset?.(true);
+    }
+
     if (savedRecord.notesEnabled && popup && !popup.closed) {
       popup.addEventListener("afterprint", () => {
         if (!popup.closed) {

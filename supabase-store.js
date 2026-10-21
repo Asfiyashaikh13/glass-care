@@ -126,11 +126,24 @@
       password: document.getElementById("authPassword").value
     });
     submitButton.disabled = false;
-    if (error) setStatus(error.message, true);
-    else document.getElementById("authPassword").value = "";
+    if (error) {
+      setStatus(error.message, true);
+    } else {
+      document.getElementById("authPassword").value = "";
+      try {
+        localStorage.removeItem("glassCareEstimate");
+        localStorage.removeItem("glassCareDraft");
+      } catch (e) {}
+      window.GlassCareEstimate?.reset?.(true);
+    }
   });
 
   signOutButton.addEventListener("click", async () => {
+    try {
+      localStorage.removeItem("glassCareEstimate");
+      localStorage.removeItem("glassCareDraft");
+    } catch (e) {}
+    window.GlassCareEstimate?.reset?.(true);
     const { error } = await client.auth.signOut();
     if (error) setStatus(error.message, true);
   });
@@ -156,6 +169,13 @@
 
   client.auth.onAuthStateChange((event, session) => {
     if (event === "INITIAL_SESSION") return;
+    if (event === "SIGNED_IN") {
+      try {
+        localStorage.removeItem("glassCareEstimate");
+        localStorage.removeItem("glassCareDraft");
+      } catch (e) {}
+      window.GlassCareEstimate?.reset?.(true);
+    }
     activateSession(session?.user || null);
   });
 
