@@ -108,3 +108,15 @@ test("calculates exact 2-decimal round off without float drift and formats money
   assert.equal(totalsPos.roundOff, 0.40);
   assert.equal(calculations.formatMoney(totalsPos.roundOff), "₹0.40");
 });
+
+test("balances CGST/SGST split and round off to the exact rupee without 1-paisa drift", () => {
+  const totals = calculations.calculateTotals([line({ unit: "Pcs", rate: 3487.51, gstRate: 18 })], "Karnataka");
+  assert.equal(totals.subtotal, 3487.51);
+  assert.equal(totals.cgst, 313.88);
+  assert.equal(totals.sgst, 313.88);
+  assert.equal(totals.taxTotal, 627.76);
+  assert.equal(totals.unroundedTotal, 4115.27);
+  assert.equal(totals.payable, 4115);
+  assert.equal(totals.roundOff, -0.27);
+  assert.equal(totals.subtotal + totals.cgst + totals.sgst + totals.roundOff, totals.payable);
+});
