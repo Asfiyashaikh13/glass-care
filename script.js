@@ -307,7 +307,8 @@ function applyRateBookSuggestion() {
 if (unitDisplay) {
   unitDisplay.addEventListener("change", () => {
     if (basisOverriddenTag) {
-      if (unitDisplay.value !== currentCategoryDefaultBasis) {
+      const cat = getSelectedValue(categorySelect, categoryCustom);
+      if (cat && unitDisplay.value !== currentCategoryDefaultBasis) {
         basisOverriddenTag.style.display = "inline";
       } else {
         basisOverriddenTag.style.display = "none";

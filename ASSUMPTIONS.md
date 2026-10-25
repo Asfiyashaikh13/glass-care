@@ -61,3 +61,4 @@
 - Totals are never altered automatically when opening, viewing, or printing old documents.
 - A `"Recalculate Totals"` option is available in the saved document menu if the user explicitly chooses to recalculate.
 - A `"Backup Data (JSON)"` button allows downloading all browser data (estimates, rate book, documents, settings) as a timestamped JSON file.
+

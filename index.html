@@ -285,16 +285,22 @@
             >
           </div>
         </div>
-        <div class="measurement-grid">
-          <div class="field" style="max-width:130px;">
-            <label for="dimensionUnit">Unit</label>
-            <select id="dimensionUnit">
-              <option value="mm" selected>mm</option>
+        <div class="measurement-toolbar" style="display:flex;align-items:center;justify-content:space-between;margin-top:18px;margin-bottom:6px;padding:0 2px;flex-wrap:wrap;gap:10px;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <label for="dimensionUnit" style="font-size:12px;font-weight:bold;color:#536174;text-transform:uppercase;letter-spacing:0.5px;margin:0;">Dimension Unit:</label>
+            <select id="dimensionUnit" style="width:auto;height:34px;padding:2px 10px;font-size:13px;font-weight:600;border:1px solid #cbd5e1;border-radius:6px;background:#f8fafc;color:#1e293b;">
+              <option value="mm" selected>Millimetres (mm)</option>
               <option value="in">Inches (in)</option>
-              <option value="cm">cm</option>
+              <option value="cm">Centimetres (cm)</option>
               <option value="ft">Feet (ft)</option>
             </select>
           </div>
+          <label style="display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:#334155;cursor:pointer;" title="Rounds each side UP to next 3 inches (76.2 mm)">
+            <input type="checkbox" id="round3InchToggle" style="width:16px;height:16px;accent-color:#16a34a;">
+            <span>Round up 3″ (76.2 mm)</span>
+          </label>
+        </div>
+        <div class="measurement-grid">
           <div class="field">
             <label id="heightLabel">Length (mm)</label>
             <input
@@ -321,11 +327,11 @@
             <div class="unit-preview" id="widthPreview"></div>
           </div>
           <div class="field" id="thicknessField">
-            <label id="thicknessLabel">Thickness (mm)</label>
+            <label id="thicknessLabel">Thickness / Depth (mm)</label>
             <input type="number" id="thickness" placeholder="10" min="0" step="any">
             <div class="unit-preview" id="thicknessPreview"></div>
           </div>
-          <div class="field" style="max-width:110px;">
+          <div class="field">
             <label>Quantity</label>
             <input
               type="number"
@@ -334,16 +340,10 @@
               min="1"
             >
           </div>
-          <div class="field round3inch-field" style="display:flex;align-items:center;padding-top:20px;">
-            <label style="display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:#334155;cursor:pointer;" title="Rounds each side UP to next 3 inches (76.2 mm)">
-              <input type="checkbox" id="round3InchToggle">
-              <span>Round up 3″ (76.2 mm)</span>
-            </label>
-          </div>
         </div>
         <div class="product-details">
           <div class="field">
-            <label>Charge by (Basis) <span id="basisOverriddenTag" class="overridden-tag" style="display:none;color:#dc2626;font-size:11px;font-weight:600;margin-left:4px;">(overridden)</span></label>
+            <label>Unit <span id="basisOverriddenTag" class="overridden-tag" style="display:none;color:#dc2626;font-size:11px;font-weight:600;margin-left:4px;">(overridden)</span></label>
             <select id="unitDisplay">
               <option value="Sq Ft">Sq Ft</option>
               <option value="Running Ft">Running Ft</option>
