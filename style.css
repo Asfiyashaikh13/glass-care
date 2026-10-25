@@ -364,6 +364,19 @@ select {
   font-size: 14px;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
+input[type="checkbox"],
+input[type="radio"] {
+  width: 16px !important;
+  height: 16px !important;
+  min-width: 16px;
+  min-height: 16px;
+  padding: 0 !important;
+  border-radius: 4px;
+  cursor: pointer;
+  box-shadow: none !important;
+  outline: none !important;
+  accent-color: #16a34a;
+}
 select {
   cursor: pointer;
 }

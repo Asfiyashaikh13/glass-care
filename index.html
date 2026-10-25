@@ -92,7 +92,16 @@
     <h2>Document settings</h2>
     <label for="termsText">Terms &amp; Conditions (used on bills and invoices)</label>
     <textarea id="termsText" rows="6"></textarea>
-    <button type="button" class="secondary-action" id="saveSettingsBtn">Save settings</button>
+    <div style="margin-top: 14px; padding-top: 14px; border-top: 1px solid #e2e8f0; display: flex; flex-direction: column; gap: 12px;">
+      <label style="display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: #334155; cursor: pointer;">
+        <input type="checkbox" id="globalRound3InchSetting">
+        <span>Default "Round size up to next 3 inches (76.2 mm)" for newly added items</span>
+      </label>
+      <div style="display: flex; gap: 10px; align-items: center; margin-top: 4px;">
+        <button type="button" class="secondary-action" id="saveSettingsBtn">Save settings</button>
+        <button type="button" id="backupDataJsonBtn" class="secondary-action" style="background:#f1f5f9;color:#334155;border:1px solid #cbd5e1;cursor:pointer;">💾 Backup All Data (JSON)</button>
+      </div>
+    </div>
   </section>
   <!-- CUSTOMER -->
   <section class="customer-card">
@@ -524,13 +533,6 @@
         <button type="button" class="saved-docs-tab" data-filter="Estimate" role="tab" aria-selected="false">Estimates</button>
         <button type="button" class="saved-docs-tab" data-filter="Bill" role="tab" aria-selected="false">Bills</button>
         <button type="button" class="saved-docs-tab" data-filter="Invoice" role="tab" aria-selected="false">Invoices</button>
-      </div>
-      <div class="saved-docs-tools" style="display:flex;align-items:center;gap:12px;margin-left:auto;">
-        <button type="button" id="backupDataJsonBtn" class="btn-backup-json" style="background:#0284c7;color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:12px;cursor:pointer;font-weight:500;">💾 Backup Data (JSON)</button>
-        <label style="font-size:12px;display:inline-flex;align-items:center;gap:6px;color:#475569;cursor:pointer;" title="Default 'Round size up to next 3 inches' for newly added items">
-          <input type="checkbox" id="globalRound3InchSetting" style="accent-color:#0284c7;">
-          <span>Default 3″ rounding</span>
-        </label>
       </div>
     </div>
     <div id="savedDocumentsList" class="saved-documents-list">No documents generated yet.</div>
