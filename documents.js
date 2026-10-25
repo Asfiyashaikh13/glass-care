@@ -101,6 +101,48 @@
     catch { return fallback; }
   }
 
+  function migrateSavedDocuments() {
+    let changed = false;
+    documents.forEach(doc => {
+      if (!doc.totals || !Array.isArray(doc.totals.lines) || !doc.totals.lines.length) {
+        doc.totals = GlassCareCalculations.calculateTotals(doc.items || [], doc.state || "Karnataka");
+        doc.isSnapshotted = true;
+        changed = true;
+      }
+    });
+    if (changed) {
+      try {
+        localStorage.setItem(STORAGE.documents, JSON.stringify(documents));
+      } catch (e) {}
+    }
+  }
+  migrateSavedDocuments();
+
+  const backupBtn = document.getElementById("backupDataJsonBtn");
+  if (backupBtn) {
+    backupBtn.addEventListener("click", () => {
+      const backup = {
+        version: 1,
+        exportedAt: new Date().toISOString(),
+        documents: readJson(STORAGE.documents, []),
+        rateBook: readJson("glassCareRateBook", {}),
+        estimate: readJson("glassCareEstimate", []),
+        draft: readJson("glassCareDraft", {}),
+        settings: readJson(STORAGE.settings, {})
+      };
+      const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `glass-care-backup-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showStatus("Data backed up successfully to JSON");
+    });
+  }
+
   function escapeHtml(value) {
     return String(value ?? "").replace(/[&<>"']/g, char => ({
       "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
@@ -533,7 +575,7 @@
             <div class="note-item">
               <div class="note-item-header">${idx + 1}. ${escapeHtml([item.category, item.itemName].filter(Boolean).join(" — "))}</div>
               <div class="note-row"><b>Dimensions:</b> ${escapeHtml(dimensionText(item))} &nbsp;·&nbsp; <b>Unit:</b> ${escapeHtml(item.unit)} &nbsp;·&nbsp; <b>Qty:</b> ${item.quantity} &nbsp;·&nbsp; <b>Measure:</b> ${escapeHtml(line.measureLabel)}</div>
-              <div class="note-row"><b>Formula:</b> ${escapeHtml(line.formula)} = ₹${formatRawNumber(line.grossAmount)}; Discount: ${line.discountPercent}% = −₹${formatRawNumber(line.discountAmount)}; Taxable: ₹${formatRawNumber(line.taxableAmount)}</div>
+              <div class="note-row"><b>Formula:</b> ${escapeHtml(line.explanation || `${line.formula} = ₹${formatRawNumber(line.grossAmount)}; Discount: ${line.discountPercent}% = −₹${formatRawNumber(line.discountAmount)}; Taxable: ₹${formatRawNumber(line.taxableAmount)}`)}</div>
               <div class="note-row"><b>Taxes:</b> ${taxLabel} &nbsp;·&nbsp; <b>Line Total:</b> ₹${formatRawNumber(line.taxableAmount + line.taxAmount)}</div>
             </div>
           `;
@@ -1506,6 +1548,22 @@
         });
         dropdown.append(convertBtn);
       }
+
+      const recalcBtn = document.createElement("button");
+      recalcBtn.type = "button";
+      recalcBtn.className = "saved-doc-menu-item";
+      recalcBtn.textContent = "⟳ Recalculate Totals";
+      recalcBtn.addEventListener("click", () => {
+        closeAllDocMenus();
+        if (confirm(`Recalculate totals for ${record.number} using canonical formula?`)) {
+          record.totals = GlassCareCalculations.calculateTotals(record.items, record.state);
+          record.isSnapshotted = true;
+          try { localStorage.setItem(STORAGE.documents, JSON.stringify(documents)); } catch (e) {}
+          renderDocuments();
+          showStatus(`Recalculated totals for ${record.number}`);
+        }
+      });
+      dropdown.append(recalcBtn);
 
       // Change payment status actions
       const currentPayStatus = record.paymentMode || "Paid";

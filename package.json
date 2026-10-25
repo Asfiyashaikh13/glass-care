@@ -1,0 +1,11 @@
+{
+  "name": "glass-care",
+  "version": "1.0.0",
+  "scripts": {
+    "test": "node --test tests/calculations.test.js && node tests/smoke-test.js"
+  },
+  "dependencies": {
+    "decimal.js": "^10.6.0",
+    "playwright": "^1.64.1"
+  }
+}

@@ -521,9 +521,50 @@ select:focus {
 }
 .table-wrapper {
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
   min-width: 0;
   max-width: 100%;
   margin-top: 15px;
+  position: relative;
+}
+table.estimate-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  min-width: 1380px;
+}
+table.estimate-table th:first-child,
+table.estimate-table td:first-child {
+  position: sticky;
+  left: 0;
+  background: #f8fafc;
+  z-index: 2;
+  text-align: center;
+  box-shadow: 2px 0 5px rgba(0, 0, 0, 0.05);
+}
+table.estimate-table th:first-child {
+  background: #f3f6fa;
+  z-index: 3;
+}
+.unit-preview {
+  font-size: 11px;
+  color: #0284c7;
+  font-weight: 500;
+  margin-top: 3px;
+  min-height: 15px;
+}
+.overridden-tag {
+  background: #fee2e2;
+  color: #b91c1c;
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+.calc-explanation {
+  font-family: inherit;
+  line-height: 1.5;
+}
+.sanity-warning-container {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
 table {
   width: 100%;

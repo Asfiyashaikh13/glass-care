@@ -191,4 +191,159 @@ test("calculates Cubic Ft from inches (e.g. 12x12x12 in = 1 CFT)", () => {
   assert.equal(cftInch.amount, 360);
 });
 
+// REQUIRED TESTS FROM SPECIFICATION
+test("spec: 13 x 13 x 18 in, Cubic Ft, Qty 1, Rate 800, Disc 10% -> volume 1.7604, amount 1,267.50", () => {
+  const res = calculations.calculateLine(line({
+    dimensionUnit: "in",
+    height: 13,
+    width: 13,
+    thickness: 18,
+    unit: "Cubic Ft",
+    quantity: 1,
+    rate: 800,
+    discountPercent: 10
+  }));
+  assert.equal(res.measure.toFixed(4), "1.7604");
+  assert.equal(res.grossAmount.toFixed(2), "1408.33");
+  assert.equal(res.discountAmount.toFixed(2), "140.83");
+  assert.equal(res.taxableAmount.toFixed(2), "1267.50");
+  assert.equal(res.amount.toFixed(2), "1267.50");
+});
+
+test("spec: 12 x 13 x 118 in, Cubic Ft, Qty 1, Rate 300, Disc 10% -> volume 10.653, gross 3,195.83, discount 319.58, taxable 2,876.25, CGST 258.86, SGST 258.86, total 3,393.97, payable 3,394.00, triggers depth warning", () => {
+  const item = {
+    dimensionUnit: "in",
+    height: 12,
+    width: 13,
+    thickness: 118,
+    unit: "Cubic Ft",
+    quantity: 1,
+    rate: 300,
+    discountPercent: 10,
+    gstRate: 18,
+    state: "Karnataka"
+  };
+  const totals = calculations.calculateTotals([item], "Karnataka");
+  const row = totals.lines[0];
+
+  assert.equal(row.measure.toFixed(3), "10.653");
+  assert.equal(row.grossAmount.toFixed(2), "3195.83");
+  assert.equal(row.discountAmount.toFixed(2), "319.58");
+  assert.equal(row.taxableAmount.toFixed(2), "2876.25");
+  assert.equal(totals.cgst.toFixed(2), "258.86");
+  assert.equal(totals.sgst.toFixed(2), "258.86");
+  assert.equal(totals.unroundedTotal.toFixed(2), "3393.97");
+  assert.equal(totals.payable.toFixed(2), "3394.00");
+  assert.ok(row.warnings.some(w => /depth|thickness/i.test(w) && /300 mm/i.test(w)), "Expected depth warning");
+});
+
+test("spec: 1800 x 1200 mm, Sq Ft, Qty 1 -> 23.250 sq ft; with 3-inch rounding -> 1828.8 x 1219.2 -> 24.000 sq ft", () => {
+  const unrounded = calculations.calculateLine(line({
+    dimensionUnit: "mm",
+    height: 1800,
+    width: 1200,
+    unit: "Sq Ft",
+    quantity: 1,
+    round3Inch: false
+  }));
+  assert.equal(unrounded.measure.toFixed(3), "23.250");
+
+  const rounded = calculations.calculateLine(line({
+    dimensionUnit: "mm",
+    height: 1800,
+    width: 1200,
+    unit: "Sq Ft",
+    quantity: 1,
+    round3Inch: true
+  }));
+  assert.equal(rounded.billedHeightMm, 1828.8);
+  assert.equal(rounded.billedWidthMm, 1219.2);
+  assert.equal(rounded.measure.toFixed(3), "24.000");
+});
+
+test("spec: 1850 x 415 mm, 3-inch rounding -> 1905 x 457.2, Sq Ft 9.375, at Rate 565 -> 5,296.88", () => {
+  const res = calculations.calculateLine(line({
+    dimensionUnit: "mm",
+    height: 1850,
+    width: 415,
+    unit: "Sq Ft",
+    quantity: 1,
+    rate: 565,
+    round3Inch: true
+  }));
+  assert.equal(res.billedHeightMm, 1905);
+  assert.equal(res.billedWidthMm, 457.2);
+  assert.equal(res.measure.toFixed(3), "9.375");
+  assert.equal(res.grossAmount.toFixed(2), "5296.88");
+});
+
+test("spec: Running Ft: 1371.6 x 533.4 mm, Qty 2 -> 25.000", () => {
+  const res = calculations.calculateLine(line({
+    dimensionUnit: "mm",
+    height: 1371.6,
+    width: 533.4,
+    unit: "Running Ft",
+    quantity: 2,
+    round3Inch: false
+  }));
+  assert.equal(res.measure.toFixed(3), "25.000");
+});
+
+test("spec: Unit conversion round trips (in, cm, ft, mm) and unit-mismatch warning", () => {
+  assert.equal(calculations.toMm(1, "in"), 25.4);
+  assert.equal(calculations.toMm(1, "cm"), 10);
+  assert.equal(calculations.toMm(1, "ft"), 304.8);
+  assert.equal(calculations.toMm(1, "mm"), 1);
+
+  assert.equal(calculations.fromMm(25.4, "in"), 1);
+  assert.equal(calculations.fromMm(10, "cm"), 1);
+  assert.equal(calculations.fromMm(304.8, "ft"), 1);
+  assert.equal(calculations.fromMm(1, "mm"), 1);
+
+  // Unit mismatch warning: unit is Inches and size > 500
+  const warnInches = calculations.checkSanity({
+    dimensionUnit: "in",
+    height: 550,
+    width: 100,
+    unit: "Sq Ft"
+  });
+  assert.ok(warnInches.some(w => /exceeds 500 inches/i.test(w)));
+
+  // Unit mismatch warning: unit is mm and all dimensions < 20
+  const warnMm = calculations.checkSanity({
+    dimensionUnit: "mm",
+    height: 12,
+    width: 14,
+    unit: "Sq Ft"
+  });
+  assert.ok(warnMm.some(w => /under 20 mm/i.test(w)));
+});
+
+test("spec: 1800 mm and 70.866 in give the same amount", () => {
+  const mmItem = calculations.calculateLine(line({
+    dimensionUnit: "mm",
+    height: 1800,
+    width: 1200,
+    unit: "Sq Ft",
+    quantity: 1,
+    rate: 100,
+    round3Inch: false
+  }));
+  const inItem = calculations.calculateLine(line({
+    dimensionUnit: "in",
+    height: 70.866,
+    width: 47.244,
+    unit: "Sq Ft",
+    quantity: 1,
+    rate: 100,
+    round3Inch: false
+  }));
+  assert.equal(mmItem.grossAmount.toFixed(2), inItem.grossAmount.toFixed(2));
+});
+
+test("spec: Indian words: 3394 -> 'Rupees Three Thousand Three Hundred Ninety Four Only'", () => {
+  assert.equal(calculations.formatIndianWords(3394), "Rupees Three Thousand Three Hundred Ninety Four Only");
+});
+
+
 

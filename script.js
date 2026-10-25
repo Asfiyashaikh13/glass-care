@@ -26,6 +26,14 @@ const gstRateInput = document.getElementById("gstRate");
 const unitDisplay = document.getElementById("unitDisplay");
 const cftDimUnit = document.getElementById("cftDimUnit");
 const cftDimUnitWrap = document.getElementById("cftDimUnitWrap");
+const dimensionUnitSelect = document.getElementById("dimensionUnit");
+const round3InchToggle = document.getElementById("round3InchToggle");
+const basisOverriddenTag = document.getElementById("basisOverriddenTag");
+const sanityWarningContainer = document.getElementById("sanityWarningContainer");
+const sanityWarningList = document.getElementById("sanityWarningList");
+const confirmSanityCheckbox = document.getElementById("confirmSanityCheckbox");
+const calculationExplanation = document.getElementById("calculationExplanation");
+const globalRound3InchSetting = document.getElementById("globalRound3InchSetting");
 const originalSize = document.getElementById("originalSize");
 const roundedSize = document.getElementById("roundedSize");
 const areaDisplay = document.getElementById("areaDisplay");
@@ -44,6 +52,7 @@ const rateBookPanel = document.getElementById("rateBookPanel");
 const rateBookList = document.getElementById("rateBookList");
 const rateBookCount = document.getElementById("rateBookCount");
 let isRateEditing = false;
+let currentCategoryDefaultBasis = "Sq Ft";
 
 /* ---------- RATE BOOK (saved base rates per category, kept in the browser) ---------- */
 const RATE_BOOK_KEY = "glassCareRateBook";
@@ -219,15 +228,44 @@ function normalizeKey(s) {
     .replace(/\s+/g, ' ');
 }
 
-function findRateForCategory(categoryValue) {
+function getRateBookEntry(categoryValue) {
+  if (!categoryValue) return { rate: 300, basis: "Sq Ft", gstRate: 18, hsn: "" };
   const target = normalizeKey(categoryValue);
+  let found = undefined;
   for (const k in rateBook) {
-    if (normalizeKey(k) === target) return rateBook[k];
+    if (normalizeKey(k) === target) {
+      found = rateBook[k];
+      break;
+    }
   }
-  return undefined;
+  if (found === undefined) {
+    for (const k in DEFAULT_RATES) {
+      if (normalizeKey(k) === target) {
+        found = DEFAULT_RATES[k];
+        break;
+      }
+    }
+  }
+  if (found === undefined) found = 300;
+
+  if (typeof found === "number") {
+    const basis = /studs|hardware|no['’]s|bracket|handle/i.test(categoryValue) ? "Per Piece" : "Sq Ft";
+    return { rate: found, basis, gstRate: 18, hsn: "" };
+  }
+  return {
+    rate: Number(found.rate) || 0,
+    basis: found.basis || (/studs|hardware|no['’]s|bracket|handle/i.test(categoryValue) ? "Per Piece" : "Sq Ft"),
+    gstRate: found.gstRate != null ? Number(found.gstRate) : 18,
+    hsn: found.hsn || ""
+  };
 }
 
-/* Auto-fill the Rate field from the rate book when a category is picked */
+function findRateForCategory(categoryValue) {
+  const entry = getRateBookEntry(categoryValue);
+  return entry.rate;
+}
+
+/* Auto-fill the Rate & Basis from the rate book when a category is picked */
 function applyRateBookSuggestion() {
   const categoryValue = getSelectedValue(categorySelect, categoryCustom);
   if (!categoryValue) {
@@ -237,33 +275,46 @@ function applyRateBookSuggestion() {
     isRateEditing = false;
     editRateBtn.style.display = "block";
     saveRateBtn.style.display = "none";
+    if (basisOverriddenTag) basisOverriddenTag.style.display = "none";
     updateCalculation();
     return;
   }
-  const found = findRateForCategory(categoryValue);
-  if (found !== undefined) {
-    rate.value = found;
-    rate.setAttribute("readonly", "");
-    isRateEditing = false;
-    editRateBtn.style.display = "block";
-    saveRateBtn.style.display = "none";
-    rateSourceTag.textContent = "✓ auto-filled from Rate Book";
-    rateSourceTag.style.color = "#17733f";
-  } else {
-    // New categories have no saved rate, so allow direct manual entry.
-    rate.value = "";
-    rate.removeAttribute("readonly");
-    isRateEditing = true;
-    editRateBtn.style.display = "none";
-    saveRateBtn.style.display = "block";
-    rateSourceTag.textContent = "⚠ no saved rate — enter manually";
-    rateSourceTag.style.color = "#d97706";
+  const entry = getRateBookEntry(categoryValue);
+  rate.value = entry.rate;
+  if (unitDisplay) {
+    unitDisplay.value = entry.basis;
+    currentCategoryDefaultBasis = entry.basis;
   }
+  if (gstRateInput && entry.gstRate != null) {
+    gstRateInput.value = entry.gstRate;
+  }
+  if (basisOverriddenTag) basisOverriddenTag.style.display = "none";
+
+  rate.setAttribute("readonly", "");
+  isRateEditing = false;
+  editRateBtn.style.display = "block";
+  saveRateBtn.style.display = "none";
+  rateSourceTag.textContent = `✓ auto-filled (${entry.basis})`;
+  rateSourceTag.style.color = "#17733f";
+
   editRateBtn.textContent = "✏️ Edit";
   editRateBtn.style.background = "white";
   editRateBtn.style.color = "#26364d";
   editRateBtn.style.borderColor = "#cbd5e1";
   updateCalculation();
+}
+
+if (unitDisplay) {
+  unitDisplay.addEventListener("change", () => {
+    if (basisOverriddenTag) {
+      if (unitDisplay.value !== currentCategoryDefaultBasis) {
+        basisOverriddenTag.style.display = "inline";
+      } else {
+        basisOverriddenTag.style.display = "none";
+      }
+    }
+    updateCalculation();
+  });
 }
 
 editRateBtn.addEventListener("click", () => {
@@ -285,9 +336,17 @@ editRateBtn.addEventListener("click", () => {
     }
     const value = Number(rate.value) || 0;
     const key = rateBookKeyFor(categoryValue);
-    rateBook[key] = value;
+    const existing = getRateBookEntry(categoryValue);
+    rateBook[key] = {
+      rate: value,
+      basis: unitDisplay ? unitDisplay.value : existing.basis,
+      gstRate: gstRateInput ? (Number(gstRateInput.value) || 18) : 18,
+      hsn: existing.hsn || ""
+    };
     saveRateBook(rateBook);
-    rateSourceTag.textContent = `✓ saved ₹${value} as default`;
+    currentCategoryDefaultBasis = unitDisplay ? unitDisplay.value : existing.basis;
+    if (basisOverriddenTag) basisOverriddenTag.style.display = "none";
+    rateSourceTag.textContent = `✓ saved ₹${value} (${rateBook[key].basis}) as default`;
     rateSourceTag.style.color = "#17733f";
 
     // Exit edit mode
@@ -311,9 +370,17 @@ saveRateBtn.addEventListener("click", () => {
   }
   const value = Number(rate.value) || 0;
   const key = rateBookKeyFor(categoryValue);
-  rateBook[key] = value;
+  const existing = getRateBookEntry(categoryValue);
+  rateBook[key] = {
+    rate: value,
+    basis: unitDisplay ? unitDisplay.value : existing.basis,
+    gstRate: gstRateInput ? (Number(gstRateInput.value) || 18) : 18,
+    hsn: existing.hsn || ""
+  };
   saveRateBook(rateBook);
-  rateSourceTag.textContent = `✓ saved ₹${value} as default for this category`;
+  currentCategoryDefaultBasis = unitDisplay ? unitDisplay.value : existing.basis;
+  if (basisOverriddenTag) basisOverriddenTag.style.display = "none";
+  rateSourceTag.textContent = `✓ saved ₹${value} (${rateBook[key].basis}) as default`;
   rate.setAttribute("readonly", "");
   isRateEditing = false;
   editRateBtn.style.display = "block";
@@ -342,32 +409,69 @@ function renderRateBook() {
   keys.sort().forEach(key => {
     const row = document.createElement("div");
     row.className = "rate-book-row";
+    row.style.display = "flex";
+    row.style.alignItems = "center";
+    row.style.gap = "8px";
+    row.style.padding = "6px 0";
+    row.style.borderBottom = "1px solid #f1f5f9";
 
     const name = document.createElement("div");
     name.className = "rb-name";
     name.textContent = key;
     name.title = key;
+    name.style.flex = "1";
+    name.style.fontSize = "12px";
 
-    const valueInput = document.createElement("input");
-    valueInput.type = "number";
-    valueInput.value = rateBook[key];
-    valueInput.addEventListener("change", () => {
-      rateBook[key] = Number(valueInput.value) || 0;
+    const entry = getRateBookEntry(key);
+
+    const basisSel = document.createElement("select");
+    basisSel.style.fontSize = "12px";
+    basisSel.style.padding = "2px 4px";
+    ["Sq Ft", "Running Ft", "Cubic Ft", "Per Piece"].forEach(b => {
+      const opt = document.createElement("option");
+      opt.value = b;
+      opt.textContent = b;
+      if (b === entry.basis) opt.selected = true;
+      basisSel.appendChild(opt);
+    });
+    basisSel.addEventListener("change", () => {
+      rateBook[key] = { ...entry, basis: basisSel.value };
+      saveRateBook(rateBook);
+    });
+
+    const rateIn = document.createElement("input");
+    rateIn.type = "number";
+    rateIn.style.width = "75px";
+    rateIn.style.fontSize = "12px";
+    rateIn.value = entry.rate;
+    rateIn.placeholder = "Rate ₹";
+    rateIn.addEventListener("change", () => {
+      rateBook[key] = { ...entry, rate: Number(rateIn.value) || 0 };
+      saveRateBook(rateBook);
+    });
+
+    const gstIn = document.createElement("input");
+    gstIn.type = "number";
+    gstIn.style.width = "50px";
+    gstIn.style.fontSize = "12px";
+    gstIn.value = entry.gstRate;
+    gstIn.placeholder = "GST%";
+    gstIn.addEventListener("change", () => {
+      rateBook[key] = { ...entry, gstRate: Number(gstIn.value) || 0 };
       saveRateBook(rateBook);
     });
 
     const deleteBtn = document.createElement("button");
     deleteBtn.className = "rb-delete";
     deleteBtn.textContent = "🗑";
+    deleteBtn.title = "Delete rate book entry";
     deleteBtn.addEventListener("click", () => {
       delete rateBook[key];
       saveRateBook(rateBook);
       renderRateBook();
     });
 
-    row.appendChild(name);
-    row.appendChild(valueInput);
-    row.appendChild(deleteBtn);
+    row.append(name, basisSel, rateIn, gstIn, deleteBtn);
     rateBookList.appendChild(row);
   });
 }
@@ -719,35 +823,51 @@ function generateEstimateNumber() {
   return `GCE-${year}${month}-${random}`;
 }
 
-/* LIVE CALCULATION (based on selected Unit) */
+/* LIVE CALCULATION (based on canonical calc.js) */
 function getCalculation() {
-  const line = GlassCareCalculations.calculateLine({
-    unit: unitDisplay.value,
-    dimensionUnit: unitDisplay.value === "Cubic Ft" ? (cftDimUnit ? cftDimUnit.value : "in") : undefined,
-    quantity: quantity.value,
-    rate: rate.value,
-    discountPercent: discountPercent.value,
-    gstRate: gstRateInput.value,
+  const dimUnit = dimensionUnitSelect ? dimensionUnitSelect.value : "mm";
+  const round3Inch = round3InchToggle ? round3InchToggle.checked : false;
+  const basis = unitDisplay ? unitDisplay.value : "Sq Ft";
+  const categoryVal = getSelectedValue(categorySelect, categoryCustom);
+  const defaultEntry = getRateBookEntry(categoryVal);
+
+  const line = GlassCareCalc.calculateLine({
+    unit: basis,
+    basis: basis,
+    dimensionUnit: dimUnit,
+    round3Inch: round3Inch,
+    quantity: quantity ? quantity.value : 1,
+    rate: rate ? rate.value : 0,
+    defaultRate: defaultEntry.rate,
+    discountPercent: discountPercent ? discountPercent.value : 0,
+    gstRate: gstRateInput ? gstRateInput.value : 18,
+    enteredHeight: Number(height.value) || 0,
+    enteredWidth: Number(width.value) || 0,
+    enteredThickness: Number(thickness.value) || 0,
     height: Number(height.value) || 0,
     width: Number(width.value) || 0,
-    thickness: Number(thickness.value) || 0
+    thickness: Number(thickness.value) || 0,
+    category: categoryVal,
+    state: customerState ? customerState.value : "Karnataka"
   });
+
   return {
     ...line,
     qty: line.quantity,
     itemRate: line.rate,
     discount: line.discountPercent,
-    h: line.height,
-    w: line.width,
-    area: line.unit === "Sqft" ? line.measure : 0,
-    runningFeet: line.unit === "R.ft" ? line.measure : 0,
-    volume: line.unit === "Cubic Ft" ? line.measure : 0
+    h: line.enteredHeight,
+    w: line.enteredWidth,
+    area: line.basis === "Sq Ft" ? line.measure : 0,
+    runningFeet: line.basis === "Running Ft" ? line.measure : 0,
+    volume: line.basis === "Cubic Ft" ? line.measure : 0
   };
 }
 
 /* UPDATE SCREEN */
 function updateCalculation() {
   const calc = getCalculation();
+  const dimUnit = dimensionUnitSelect ? dimensionUnitSelect.value : "mm";
 
   const thicknessLabel = document.getElementById("thicknessLabel");
   const heightLabel = document.getElementById("heightLabel");
@@ -755,72 +875,132 @@ function updateCalculation() {
   const areaCardLabel = document.getElementById("areaCardLabel");
   const formulaNote = document.getElementById("formulaNote");
 
-  if (calc.unit === "Sqft") {
-    if (cftDimUnitWrap) cftDimUnitWrap.style.display = "none";
-    if (thicknessLabel) thicknessLabel.textContent = "Thickness (mm)";
-    if (heightLabel) heightLabel.textContent = "Frame Height (mm)";
-    if (widthLabel) widthLabel.textContent = "Frame Width (mm)";
-    if (thickness) thickness.placeholder = "10";
+  // Dynamic labels following the selected dimension unit (Requirement B)
+  if (heightLabel) {
+    heightLabel.textContent = (calc.basis === "Cubic Ft" ? `Length (${dimUnit})` : `Length / Height (${dimUnit})`);
+  }
+  if (widthLabel) {
+    widthLabel.textContent = `Width (${dimUnit})`;
+  }
+  if (thicknessLabel) {
+    thicknessLabel.textContent = (calc.basis === "Cubic Ft" ? `Depth (${dimUnit})` : `Thickness (${dimUnit})`);
+  }
+
+  // Dynamic placeholders
+  if (dimUnit === "in") {
+    if (height) height.placeholder = "72";
+    if (width) width.placeholder = "48";
+    if (thickness) thickness.placeholder = calc.basis === "Cubic Ft" ? "12" : "0.5";
+  } else if (dimUnit === "mm") {
+    if (height) height.placeholder = "1800";
+    if (width) width.placeholder = "1200";
+    if (thickness) thickness.placeholder = calc.basis === "Cubic Ft" ? "100" : "10";
+  } else if (dimUnit === "cm") {
+    if (height) height.placeholder = "180";
+    if (width) width.placeholder = "120";
+    if (thickness) thickness.placeholder = calc.basis === "Cubic Ft" ? "10" : "1";
+  } else if (dimUnit === "ft") {
+    if (height) height.placeholder = "6";
+    if (width) width.placeholder = "4";
+    if (thickness) thickness.placeholder = calc.basis === "Cubic Ft" ? "1" : "0.1";
+  }
+
+  // Previews under inputs (Requirement B)
+  const hVal = Number(height.value) || 0;
+  const wVal = Number(width.value) || 0;
+  const tVal = Number(thickness.value) || 0;
+  const hPrev = document.getElementById("heightPreview");
+  const wPrev = document.getElementById("widthPreview");
+  const tPrev = document.getElementById("thicknessPreview");
+  if (hPrev) hPrev.textContent = GlassCareCalc.formatUnitPreview(hVal, dimUnit);
+  if (wPrev) wPrev.textContent = GlassCareCalc.formatUnitPreview(wVal, dimUnit);
+  if (tPrev) tPrev.textContent = GlassCareCalc.formatUnitPreview(tVal, dimUnit);
+
+  // Table header unit updates
+  document.querySelectorAll(".dim-unit-header").forEach(el => {
+    el.textContent = dimUnit;
+  });
+
+  if (calc.basis === "Sq Ft") {
     if (areaCardLabel) areaCardLabel.textContent = "Area";
     if (formulaNote) {
-      formulaNote.textContent = "ⓘ Sqft: each side is taken from the client size chart (next 3-inch step), converted to feet (inches / 12), then Area = Height ft x Width ft x Qty, Amount = Area x Rate x (1 - Discount%/100). R.ft and Pcs/Job are unchanged.";
+      formulaNote.textContent = `ⓘ Sq Ft: dimensions converted from ${dimUnit} to feet (or rounded up to next 3-inch/76.2mm step if enabled). Area = Height ft × Width ft × Qty, Amount = Area × Rate × (1 − Discount%/100).`;
     }
-    originalSize.textContent = calc.h && calc.w ? `${Math.round(calc.h)} × ${Math.round(calc.w)} mm` : "-- × -- mm";
+    originalSize.textContent = calc.h && calc.w ? `${calc.h} × ${calc.w} ${dimUnit}` : `-- × -- ${dimUnit}`;
     if (calc.h && calc.w) {
-      const h = calc.chartH || (GlassCareCalculations.chartLookup ? GlassCareCalculations.chartLookup(calc.h) : { inch: Math.round(calc.h / 25.4), mm: calc.h });
-      const w = calc.chartW || (GlassCareCalculations.chartLookup ? GlassCareCalculations.chartLookup(calc.w) : { inch: Math.round(calc.w / 25.4), mm: calc.w });
-      roundedSize.textContent = `${h.mm.toFixed(1)} × ${w.mm.toFixed(1)} mm (${h.inch} × ${w.inch} in)`;
+      if (calc.round3Inch && (calc.billedHeightMm !== calc.heightMm || calc.billedWidthMm !== calc.widthMm)) {
+        roundedSize.textContent = `${calc.billedHeightMm.toFixed(1)} × ${calc.billedWidthMm.toFixed(1)} mm (rounded)`;
+      } else {
+        roundedSize.textContent = `${calc.heightMm.toFixed(1)} × ${calc.widthMm.toFixed(1)} mm`;
+      }
     } else {
-      roundedSize.textContent = "-- × -- mm";
+      roundedSize.textContent = `-- × -- mm`;
     }
-    areaDisplay.textContent = `${calc.area.toFixed(3)} Sqft`;
-    document.getElementById("calculationHint").textContent = "Area calculated from client size chart (next 3-inch step).";
-  } else if (calc.unit === "R.ft") {
-    if (cftDimUnitWrap) cftDimUnitWrap.style.display = "none";
-    if (thicknessLabel) thicknessLabel.textContent = "Thickness (mm)";
-    if (heightLabel) heightLabel.textContent = "Frame Height (mm)";
-    if (widthLabel) widthLabel.textContent = "Frame Width (mm)";
+    areaDisplay.textContent = `${calc.area.toFixed(3)} Sq Ft`;
+    document.getElementById("calculationHint").textContent = calc.round3Inch
+      ? "Area calculated with 3-inch (76.2 mm) rounding enabled."
+      : "Area calculated from exact dimensions.";
+  } else if (calc.basis === "Running Ft") {
     if (areaCardLabel) areaCardLabel.textContent = "Running Feet";
-    originalSize.textContent = calc.h && calc.w ? `${Math.round(calc.h)} × ${Math.round(calc.w)} mm` : "-- × -- mm";
+    if (formulaNote) {
+      formulaNote.textContent = `ⓘ Running Ft: 2 × (Height + Width) ÷ 304.8 × Qty. Amount = Running Ft × Rate × (1 − Discount%/100).`;
+    }
+    originalSize.textContent = calc.h && calc.w ? `${calc.h} × ${calc.w} ${dimUnit}` : `-- × -- ${dimUnit}`;
     roundedSize.textContent = `${calc.runningFeet.toFixed(2)} R.ft`;
     areaDisplay.textContent = `${calc.runningFeet.toFixed(2)} R.ft`;
-    document.getElementById("calculationHint").textContent = "Running feet calculated from the entered perimeter.";
-  } else if (calc.unit === "Cubic Ft") {
-    if (cftDimUnitWrap) cftDimUnitWrap.style.display = "inline-block";
-    const dimUnit = (cftDimUnit?.value === "mm" || (!cftDimUnit && !calc.isInch)) ? "mm" : "in";
-    if (thicknessLabel) thicknessLabel.textContent = `Depth (${dimUnit})`;
-    if (heightLabel) heightLabel.textContent = `Length (${dimUnit})`;
-    if (widthLabel) widthLabel.textContent = `Width (${dimUnit})`;
-    if (thickness) thickness.placeholder = dimUnit === "in" ? "12" : "100";
+    document.getElementById("calculationHint").textContent = "Running feet calculated from perimeter.";
+  } else if (calc.basis === "Cubic Ft") {
     if (areaCardLabel) areaCardLabel.textContent = "Cubic Feet";
-    const dimSymbol = dimUnit === "in" ? "in" : "mm";
     if (formulaNote) {
-      if (dimUnit === "in") {
-        formulaNote.textContent = "ⓘ Cubic Ft: Volume = (Length in × Width in × Depth in ÷ 1,728) × Qty. Amount = Volume × Rate × (1 - Discount%/100).";
-      } else {
-        formulaNote.textContent = "ⓘ Cubic Ft: Volume = (Length mm × Width mm × Depth mm ÷ 28,316,847) × Qty. Amount = Volume × Rate × (1 - Discount%/100).";
-      }
+      formulaNote.textContent = `ⓘ Cubic Ft: Volume = (Length × Width × Depth in mm) ÷ 28,316,846.592 × Qty (equal to in³ ÷ 1,728). Amount = Volume × Rate × (1 − Discount%/100).`;
     }
     const hasDims = calc.h > 0 && calc.w > 0 && calc.thickness > 0;
-    originalSize.textContent = hasDims ? `${calc.h} × ${calc.w} × ${calc.thickness} ${dimSymbol}` : `Length × width × depth required`;
-    roundedSize.textContent = hasDims ? `${calc.h} × ${calc.w} × ${calc.thickness} ${dimSymbol}` : `-- × -- × -- ${dimSymbol}`;
-    areaDisplay.textContent = `${calc.measure.toFixed(3)} Cubic Ft`;
-    document.getElementById("calculationHint").textContent = `Cubic feet uses Length × Width × Depth in ${dimUnit === "in" ? "inches (÷ 1,728)" : "mm (÷ 28,316,847)"}.`;
+    originalSize.textContent = hasDims ? `${calc.h} × ${calc.w} × ${calc.thickness} ${dimUnit}` : `Length × width × depth required`;
+    roundedSize.textContent = hasDims ? `${calc.heightMm.toFixed(1)} × ${calc.widthMm.toFixed(1)} × ${calc.thicknessMm.toFixed(1)} mm` : `-- × -- × -- mm`;
+    areaDisplay.textContent = `${calc.volume.toFixed(3)} Cubic Ft`;
+    document.getElementById("calculationHint").textContent = `Cubic feet calculated from exact volume in ${dimUnit}.`;
   } else {
-    if (cftDimUnitWrap) cftDimUnitWrap.style.display = "none";
-    if (thicknessLabel) thicknessLabel.textContent = "Thickness (mm)";
-    if (heightLabel) heightLabel.textContent = "Frame Height (mm)";
-    if (widthLabel) widthLabel.textContent = "Frame Width (mm)";
+    // Per Piece
     if (areaCardLabel) areaCardLabel.textContent = "Quantity";
+    if (formulaNote) {
+      formulaNote.textContent = `ⓘ Per Piece: Amount = Quantity × Rate × (1 − Discount%/100).`;
+    }
     originalSize.textContent = "Not required";
     roundedSize.textContent = "Not applicable";
-    areaDisplay.textContent = `${calc.qty} ${calc.unit}`;
+    areaDisplay.textContent = `${calc.qty} Pcs`;
     document.getElementById("calculationHint").textContent = "Quantity × rate, less discount.";
   }
 
-  if (calc.errors.length) document.getElementById("calculationHint").textContent = calc.errors[0];
+  // Explanation string (Requirement G)
+  const calcExpl = document.getElementById("calculationExplanation");
+  if (calcExpl) {
+    if (calc.explanation) {
+      calcExpl.style.display = "block";
+      calcExpl.textContent = calc.explanation;
+    } else {
+      calcExpl.style.display = "none";
+    }
+  }
 
-  amountDisplay.textContent = formatMoney(calc.amount);
+  // Sanity warnings (Requirement F)
+  const warnContainer = document.getElementById("sanityWarningContainer");
+  const warnList = document.getElementById("sanityWarningList");
+  if (warnContainer && warnList) {
+    if (calc.warnings && calc.warnings.length > 0) {
+      warnContainer.style.display = "block";
+      warnList.innerHTML = calc.warnings.map(w => `<li>${w}</li>`).join("");
+    } else {
+      warnContainer.style.display = "none";
+      warnList.innerHTML = "";
+      if (confirmSanityCheckbox) confirmSanityCheckbox.checked = false;
+    }
+  }
+
+  if (calc.errors && calc.errors.length) {
+    document.getElementById("calculationHint").textContent = calc.errors[0];
+  }
+
+  amountDisplay.textContent = GlassCareCalc.formatMoney(calc.amount);
 }
 
 /* ADD ITEM */
@@ -833,19 +1013,19 @@ document.getElementById("addItem").addEventListener("click", function () {
   }
 
   const calc = getCalculation();
-  if (calc.unit === "Sqft" && (!calc.h || !calc.w)) {
-    alert("Please enter Height and Width for a Sqft item.");
+  if (calc.basis === "Sq Ft" && (!calc.h || !calc.w)) {
+    alert("Please enter Length/Height and Width for a Sq Ft item.");
     return;
   }
-  if (calc.unit === "R.ft" && (!calc.h || !calc.w)) {
-    alert("Please enter Height and Width for an R.ft item.");
+  if (calc.basis === "Running Ft" && (!calc.h || !calc.w)) {
+    alert("Please enter Length/Height and Width for a Running Ft item.");
     return;
   }
-  if (calc.unit === "Cubic Ft" && (!calc.h || !calc.w || !calc.thickness)) {
-    alert("Please enter Length, Width and Depth in mm for a Cubic Ft item.");
+  if (calc.basis === "Cubic Ft" && (!calc.h || !calc.w || !calc.thickness)) {
+    alert("Please enter Length, Width and Depth for a Cubic Ft item.");
     return;
   }
-  if (calc.errors.length) {
+  if (calc.errors && calc.errors.length) {
     alert(calc.errors[0]);
     return;
   }
@@ -854,25 +1034,55 @@ document.getElementById("addItem").addEventListener("click", function () {
     return;
   }
 
+  // Sanity check confirmation gate (Requirement F)
+  if (calc.warnings && calc.warnings.length > 0) {
+    if (!confirmSanityCheckbox || !confirmSanityCheckbox.checked) {
+      alert("Please confirm the highlighted sanity warnings by ticking 'I confirm these values are correct' before adding.");
+      if (sanityWarningContainer) {
+        sanityWarningContainer.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        sanityWarningContainer.style.borderColor = "#dc2626";
+      }
+      return;
+    }
+  }
+
+  const dimUnit = dimensionUnitSelect ? dimensionUnitSelect.value : "mm";
   const item = {
     id: Date.now(),
     category: categoryValue,
     itemName: itemNameValue,
-    unit: calc.unit,
-    dimensionUnit: calc.unit === "Cubic Ft" ? (calc.isInch ? "in" : "mm") : undefined,
-    height: calc.h,
-    width: calc.w,
-    thickness: calc.thickness,
-    isInch: !!calc.isInch,
-    quantity: calc.qty,
-    rate: calc.itemRate,
-    discountPercent: calc.discount,
+    unit: calc.basis,
+    basis: calc.basis,
+    dimensionUnit: dimUnit,
+    enteredHeight: calc.enteredHeight,
+    enteredWidth: calc.enteredWidth,
+    enteredThickness: calc.enteredThickness,
+    height: calc.enteredHeight,
+    width: calc.enteredWidth,
+    thickness: calc.enteredThickness,
+    heightMm: calc.heightMm,
+    widthMm: calc.widthMm,
+    thicknessMm: calc.thicknessMm,
+    billedHeightMm: calc.billedHeightMm,
+    billedWidthMm: calc.billedWidthMm,
+    billedThicknessMm: calc.billedThicknessMm,
+    round3Inch: calc.round3Inch,
+    quantity: calc.quantity,
+    rate: calc.rate,
+    discountPercent: calc.discountPercent,
     gstRate: calc.gstRate,
-    amount: calc.amount,
-    chartH: calc.chartH ? { inch: calc.chartH.inch, mm: Number(calc.chartH.mm.toFixed(1)) } : null,
-    chartW: calc.chartW ? { inch: calc.chartW.inch, mm: Number(calc.chartW.mm.toFixed(1)) } : null,
-    usedHeight: calc.chartH ? Number(calc.chartH.mm.toFixed(1)) : null,
-    usedWidth: calc.chartW ? Number(calc.chartW.mm.toFixed(1)) : null
+    grossAmount: calc.grossAmount,
+    discountAmount: calc.discountAmount,
+    taxableAmount: calc.taxableAmount,
+    taxAmount: calc.taxAmount,
+    amount: calc.taxableAmount,
+    cgst: calc.cgst,
+    sgst: calc.sgst,
+    igst: calc.igst,
+    lineTotal: calc.lineTotal,
+    explanation: calc.explanation,
+    measure: calc.measure,
+    measureLabel: calc.measureLabel
   };
 
   estimateItems.push(item);
@@ -907,9 +1117,24 @@ function resetItemForm() {
   updateCalculation();
 }
 
-/* RECALCULATE A ROW'S AREA/RUNNING-FEET/AMOUNT FROM ITS CURRENT FIELDS */
+/* RECALCULATE A ROW FROM ITS FIELDS */
 function recalcItem(item) {
-  Object.assign(item, GlassCareCalculations.calculateLine(item));
+  const dimUnit = item.dimensionUnit || "mm";
+  const calculated = GlassCareCalc.calculateLine({
+    ...item,
+    unit: item.basis || item.unit,
+    basis: item.basis || item.unit,
+    dimensionUnit: dimUnit,
+    enteredHeight: item.enteredHeight != null ? item.enteredHeight : item.height,
+    enteredWidth: item.enteredWidth != null ? item.enteredWidth : item.width,
+    enteredThickness: item.enteredThickness != null ? item.enteredThickness : item.thickness,
+    height: item.enteredHeight != null ? item.enteredHeight : item.height,
+    width: item.enteredWidth != null ? item.enteredWidth : item.width,
+    thickness: item.enteredThickness != null ? item.enteredThickness : item.thickness,
+    round3Inch: item.round3Inch !== undefined ? item.round3Inch : false,
+    state: customerState ? customerState.value : "Karnataka"
+  });
+  Object.assign(item, calculated);
 }
 
 function clearAmountOverrides(item) {
@@ -917,14 +1142,14 @@ function clearAmountOverrides(item) {
   delete item.taxAmountOverride;
 }
 
-/* RENDER TABLE (every relevant cell is editable in place) */
+/* RENDER TABLE (All 14 columns present, responsive horizontal scroll, editable in place) */
 function renderEstimate() {
   estimateBody.innerHTML = "";
 
   if (estimateItems.length === 0) {
     estimateBody.innerHTML = `
       <tr>
-        <td colspan="13" style="text-align:center;padding:48px 20px;color:#64748b;font-size:13.5px;background:#f8fafc;">
+        <td colspan="14" style="text-align:center;padding:48px 20px;color:#64748b;font-size:13.5px;background:#f8fafc;">
           <div style="font-size:26px;margin-bottom:8px;">📋</div>
           <strong style="color:#1e293b;font-size:15px;display:block;margin-bottom:4px;">No items added to current estimate</strong>
           <span style="color:#64748b;">Select a product category and enter dimensions above, then click <b>“+ ADD ITEM TO ESTIMATE”</b>.</span>
@@ -942,11 +1167,17 @@ function renderEstimate() {
     const row = document.createElement("tr");
     row.dataset.id = item.id;
 
-    // Category / Item cell
+    // 1. # Cell (sticky)
+    const numCell = document.createElement("td");
+    numCell.textContent = index + 1;
+    numCell.style.fontWeight = "600";
+    row.appendChild(numCell);
+
+    // 2. Category / Item Cell
     const catCell = document.createElement("td");
     const catInput = document.createElement("input");
     catInput.className = "cell-edit";
-    catInput.value = item.category;
+    catInput.value = item.category || "";
     catInput.addEventListener("change", () => { item.category = catInput.value; updateTotals(); });
     const itemInput = document.createElement("input");
     itemInput.className = "cell-edit item-category";
@@ -957,116 +1188,174 @@ function renderEstimate() {
     catCell.appendChild(itemInput);
     row.appendChild(catCell);
 
-    // Size cell (Frame Height × Width in mm)
+    // 3. Size Cell (Length/Height × Width with unit)
     const sizeCell = document.createElement("td");
-    if (item.unit === "Pcs" || item.unit === "Job") {
+    if (item.basis === "Per Piece") {
       sizeCell.textContent = "—";
       sizeCell.style.textAlign = "center";
     } else {
       const sizeRow = document.createElement("div");
       sizeRow.className = "size-row";
+      sizeRow.style.display = "flex";
+      sizeRow.style.alignItems = "center";
+      sizeRow.style.gap = "4px";
+
       const hInput = document.createElement("input");
       hInput.type = "number";
+      hInput.step = "any";
       hInput.className = "cell-edit";
       hInput.min = "0";
-      hInput.value = item.height;
-      hInput.setAttribute("aria-label", item.unit === "Cubic Ft" ? "Length in mm" : "Height in mm");
-      hInput.addEventListener("input", () => { item.height = Number(hInput.value) || 0; delete item.measureOverride; clearAmountOverrides(item); recalcItem(item); refreshRowCalcs(row, item); updateTotals(); });
-      const xSpan = document.createElement("span");
-      xSpan.textContent = "×";
-      const wInput = document.createElement("input");
-      wInput.type = "number";
-      wInput.className = "cell-edit";
-      wInput.min = "0";
-      wInput.value = item.width;
-      wInput.setAttribute("aria-label", "Width in mm");
-      wInput.addEventListener("input", () => { item.width = Number(wInput.value) || 0; delete item.measureOverride; clearAmountOverrides(item); recalcItem(item); refreshRowCalcs(row, item); updateTotals(); });
-      sizeRow.appendChild(hInput);
-      sizeRow.appendChild(xSpan);
-      sizeRow.appendChild(wInput);
-      sizeCell.appendChild(sizeRow);
-      if (item.unit === "Sqft") {
-        const h = item.chartH || (GlassCareCalculations.chartLookup ? GlassCareCalculations.chartLookup(item.height) : null);
-        const w = item.chartW || (GlassCareCalculations.chartLookup ? GlassCareCalculations.chartLookup(item.width) : null);
-        if (h && w) {
-          const roundedNote = document.createElement("div");
-          roundedNote.className = "rounded-note";
-          roundedNote.textContent = `${h.mm.toFixed(1)} × ${w.mm.toFixed(1)} mm`;
-          sizeCell.appendChild(roundedNote);
-        }
-      }
-    }
-    row.appendChild(sizeCell);
-
-    // Thickness / Depth cell (New column for Cubic Ft depth & Sqft thickness)
-    const thickDepthCell = document.createElement("td");
-    thickDepthCell.className = "thickness-depth-cell";
-    if (item.unit === "Sqft" || item.unit === "Cubic Ft") {
-      const tdInput = document.createElement("input");
-      tdInput.type = "number";
-      tdInput.className = "cell-edit thickness-depth-input";
-      tdInput.min = "0";
-      tdInput.step = "any";
-      tdInput.value = item.thickness || "";
-      tdInput.placeholder = item.unit === "Cubic Ft" ? "Depth" : "10";
-      tdInput.setAttribute("aria-label", item.unit === "Cubic Ft" ? "Depth in millimetres" : "Thickness in millimetres");
-      tdInput.title = item.unit === "Cubic Ft" ? "Depth in mm" : "Thickness in mm";
-      tdInput.addEventListener("input", () => {
-        item.thickness = Number(tdInput.value) || 0;
-        if (item.unit === "Cubic Ft") delete item.measureOverride;
+      hInput.value = item.enteredHeight ?? item.height ?? 0;
+      hInput.style.width = "65px";
+      hInput.addEventListener("input", () => {
+        const val = Number(hInput.value) || 0;
+        item.enteredHeight = val;
+        item.height = val;
+        item.heightMm = GlassCareCalc.toMm(val, item.dimensionUnit || "mm");
+        delete item.measureOverride;
         clearAmountOverrides(item);
         recalcItem(item);
         refreshRowCalcs(row, item);
         updateTotals();
       });
-      thickDepthCell.appendChild(tdInput);
+
+      const xSpan = document.createElement("span");
+      xSpan.textContent = "×";
+
+      const wInput = document.createElement("input");
+      wInput.type = "number";
+      wInput.step = "any";
+      wInput.className = "cell-edit";
+      wInput.min = "0";
+      wInput.value = item.enteredWidth ?? item.width ?? 0;
+      wInput.style.width = "65px";
+      wInput.addEventListener("input", () => {
+        const val = Number(wInput.value) || 0;
+        item.enteredWidth = val;
+        item.width = val;
+        item.widthMm = GlassCareCalc.toMm(val, item.dimensionUnit || "mm");
+        delete item.measureOverride;
+        clearAmountOverrides(item);
+        recalcItem(item);
+        refreshRowCalcs(row, item);
+        updateTotals();
+      });
+
+      const uSpan = document.createElement("span");
+      uSpan.className = "unit-badge";
+      uSpan.textContent = item.dimensionUnit || "mm";
+      uSpan.style.fontSize = "11px";
+      uSpan.style.color = "#64748b";
+
+      sizeRow.append(hInput, xSpan, wInput, uSpan);
+      sizeCell.appendChild(sizeRow);
+
+      const roundedNote = document.createElement("div");
+      roundedNote.className = "rounded-note";
+      roundedNote.style.fontSize = "11px";
+      roundedNote.style.color = "#059669";
+      if (item.round3Inch && (item.billedHeightMm !== item.heightMm || item.billedWidthMm !== item.widthMm)) {
+        roundedNote.textContent = `${item.billedHeightMm.toFixed(1)} × ${item.billedWidthMm.toFixed(1)} mm (rounded)`;
+      }
+      sizeCell.appendChild(roundedNote);
+    }
+    row.appendChild(sizeCell);
+
+    // 4. Thickness / Depth Cell
+    const thickDepthCell = document.createElement("td");
+    thickDepthCell.className = "thickness-depth-cell";
+    if (item.basis === "Sq Ft" || item.basis === "Cubic Ft") {
+      const tdRow = document.createElement("div");
+      tdRow.style.display = "flex";
+      tdRow.style.alignItems = "center";
+      tdRow.style.gap = "4px";
+
+      const tdInput = document.createElement("input");
+      tdInput.type = "number";
+      tdInput.step = "any";
+      tdInput.className = "cell-edit thickness-depth-input";
+      tdInput.min = "0";
+      tdInput.value = item.enteredThickness ?? item.thickness ?? "";
+      tdInput.style.width = "60px";
+      tdInput.placeholder = item.basis === "Cubic Ft" ? "Depth" : "10";
+      tdInput.addEventListener("input", () => {
+        const val = Number(tdInput.value) || 0;
+        item.enteredThickness = val;
+        item.thickness = val;
+        item.thicknessMm = GlassCareCalc.toMm(val, item.dimensionUnit || "mm");
+        if (item.basis === "Cubic Ft") delete item.measureOverride;
+        clearAmountOverrides(item);
+        recalcItem(item);
+        refreshRowCalcs(row, item);
+        updateTotals();
+      });
+
+      const uSpan = document.createElement("span");
+      uSpan.textContent = item.dimensionUnit || "mm";
+      uSpan.style.fontSize = "11px";
+      uSpan.style.color = "#64748b";
+
+      tdRow.append(tdInput, uSpan);
+      thickDepthCell.appendChild(tdRow);
     } else {
       thickDepthCell.textContent = "—";
       thickDepthCell.style.textAlign = "center";
     }
     row.appendChild(thickDepthCell);
 
-    // Unit cell
-    const unitCell = document.createElement("td");
-    const unitSelect = document.createElement("select");
-    unitSelect.className = "cell-edit";
-    ["Sqft", "R.ft", "Cubic Ft", "Pcs", "Job"].forEach(u => {
-      const opt = document.createElement("option");
-      opt.value = u;
-      opt.textContent = u;
-      if (u === item.unit) opt.selected = true;
-      unitSelect.appendChild(opt);
-    });
-    unitSelect.addEventListener("change", () => {
-      item.unit = unitSelect.value;
-      delete item.measureOverride;
-      clearAmountOverrides(item);
-      recalcItem(item);
-      renderEstimate();
-    });
-    unitCell.appendChild(unitSelect);
-    row.appendChild(unitCell);
-
-    // Qty cell
+    // 5. Qty Cell
     const qtyCell = document.createElement("td");
     const qtyInput = document.createElement("input");
     qtyInput.type = "number";
     qtyInput.min = "1";
     qtyInput.className = "cell-edit";
     qtyInput.value = item.quantity;
-    qtyInput.addEventListener("input", () => { item.quantity = qtyInput.value === "" ? 0 : Number(qtyInput.value); delete item.measureOverride; clearAmountOverrides(item); recalcItem(item); refreshRowCalcs(row, item); updateTotals(); });
+    qtyInput.style.width = "50px";
+    qtyInput.addEventListener("input", () => {
+      item.quantity = qtyInput.value === "" ? 0 : Number(qtyInput.value);
+      delete item.measureOverride;
+      clearAmountOverrides(item);
+      recalcItem(item);
+      refreshRowCalcs(row, item);
+      updateTotals();
+    });
     qtyCell.appendChild(qtyInput);
     row.appendChild(qtyCell);
 
-    // Area / Run Ft cell (auto-calculated, read-only)
+    // 6. Basis Cell
+    const basisCell = document.createElement("td");
+    const basisSelect = document.createElement("select");
+    basisSelect.className = "cell-edit";
+    ["Sq Ft", "Running Ft", "Cubic Ft", "Per Piece"].forEach(b => {
+      const opt = document.createElement("option");
+      opt.value = b;
+      opt.textContent = b;
+      if (b === (item.basis || item.unit)) opt.selected = true;
+      basisSelect.appendChild(opt);
+    });
+    basisSelect.addEventListener("change", () => {
+      item.basis = basisSelect.value;
+      item.unit = basisSelect.value;
+      delete item.measureOverride;
+      clearAmountOverrides(item);
+      recalcItem(item);
+      renderEstimate();
+    });
+    basisCell.appendChild(basisSelect);
+    row.appendChild(basisCell);
+
+    // 7. Quantity Used (Measure) Cell
     const areaCell = document.createElement("td");
     areaCell.className = "area-cell";
     const measureInput = document.createElement("input");
     measureInput.type = "number";
+    measureInput.step = "any";
     measureInput.className = "cell-edit measure-input";
     measureInput.min = "0";
-    measureInput.step = "any";
-    measureInput.setAttribute("aria-label", "Area, running feet or volume");
+    measureInput.style.width = "75px";
+    measureInput.value = Number(item.measure || 0).toFixed(item.basis === "Running Ft" ? 2 : 3);
+    measureInput.title = item.measureLabel || "";
+    measureInput.disabled = item.basis === "Per Piece";
     measureInput.addEventListener("input", () => {
       item.measureOverride = Number(measureInput.value);
       clearAmountOverrides(item);
@@ -1077,26 +1366,35 @@ function renderEstimate() {
     areaCell.appendChild(measureInput);
     row.appendChild(areaCell);
 
-    // Rate cell
+    // 8. Rate Cell
     const rateCell = document.createElement("td");
     const rateInput = document.createElement("input");
     rateInput.type = "number";
-    rateInput.className = "cell-edit";
+    rateInput.step = "any";
     rateInput.min = "0";
+    rateInput.className = "cell-edit";
     rateInput.value = item.rate;
-    rateInput.addEventListener("input", () => { item.rate = Number(rateInput.value) || 0; clearAmountOverrides(item); recalcItem(item); refreshRowCalcs(row, item); updateTotals(); });
+    rateInput.style.width = "65px";
+    rateInput.addEventListener("input", () => {
+      item.rate = Number(rateInput.value) || 0;
+      clearAmountOverrides(item);
+      recalcItem(item);
+      refreshRowCalcs(row, item);
+      updateTotals();
+    });
     rateCell.appendChild(rateInput);
     row.appendChild(rateCell);
 
-    // Per-item percentage discount
+    // 9. Discount (%) Cell
     const discountCell = document.createElement("td");
     const discountInput = document.createElement("input");
     discountInput.type = "number";
-    discountInput.className = "cell-edit";
+    discountInput.step = "0.01";
     discountInput.min = "0";
     discountInput.max = "100";
-    discountInput.step = "0.01";
+    discountInput.className = "cell-edit";
     discountInput.value = item.discountPercent ?? 10;
+    discountInput.style.width = "50px";
     discountInput.addEventListener("input", () => {
       item.discountPercent = Math.min(100, Math.max(0, Number(discountInput.value) || 0));
       clearAmountOverrides(item);
@@ -1107,15 +1405,37 @@ function renderEstimate() {
     discountCell.appendChild(discountInput);
     row.appendChild(discountCell);
 
+    // 10. Taxable Amount (₹) Cell
+    const taxableCell = document.createElement("td");
+    taxableCell.className = "amount taxable-amount-cell";
+    const taxableInput = document.createElement("input");
+    taxableInput.type = "number";
+    taxableInput.step = "0.01";
+    taxableInput.min = "0";
+    taxableInput.className = "cell-edit taxable-amount-input";
+    taxableInput.value = Number(item.taxableAmount || 0).toFixed(2);
+    taxableInput.style.width = "80px";
+    taxableInput.addEventListener("input", () => {
+      item.taxableAmountOverride = Number(taxableInput.value);
+      delete item.taxAmountOverride;
+      recalcItem(item);
+      discountInput.value = Number(item.discountPercent || 0).toFixed(2);
+      refreshRowCalcs(row, item);
+      updateTotals();
+    });
+    taxableCell.appendChild(taxableInput);
+    row.appendChild(taxableCell);
+
+    // 11. GST (%) Cell
     const gstCell = document.createElement("td");
     const gstInput = document.createElement("input");
     gstInput.type = "number";
-    gstInput.className = "cell-edit";
+    gstInput.step = "0.01";
     gstInput.min = "0";
     gstInput.max = "100";
-    gstInput.step = "0.01";
+    gstInput.className = "cell-edit";
     gstInput.value = item.gstRate ?? GST_RATE;
-    gstInput.setAttribute("aria-label", "GST rate percent");
+    gstInput.style.width = "48px";
     gstInput.addEventListener("input", () => {
       item.gstRate = Number(gstInput.value) || 0;
       delete item.taxAmountOverride;
@@ -1126,34 +1446,16 @@ function renderEstimate() {
     gstCell.appendChild(gstInput);
     row.appendChild(gstCell);
 
-    // Amount cell (auto-calculated, read-only)
-    const amountCell = document.createElement("td");
-    amountCell.className = "amount amount-cell";
-    const amountInput = document.createElement("input");
-    amountInput.type = "number";
-    amountInput.className = "cell-edit taxable-amount-input";
-    amountInput.min = "0";
-    amountInput.step = "0.01";
-    amountInput.setAttribute("aria-label", "Taxable amount in rupees");
-    amountInput.addEventListener("input", () => {
-      item.taxableAmountOverride = Number(amountInput.value);
-      delete item.taxAmountOverride;
-      recalcItem(item);
-      discountInput.value = Number(item.discountPercent || 0).toFixed(2);
-      refreshRowCalcs(row, item);
-      updateTotals();
-    });
-    row.appendChild(amountCell);
-    amountCell.appendChild(amountInput);
-
+    // 12. GST Amount (₹) Cell
     const taxAmountCell = document.createElement("td");
     taxAmountCell.className = "tax-amount-cell";
     const taxAmountInput = document.createElement("input");
     taxAmountInput.type = "number";
-    taxAmountInput.className = "cell-edit tax-amount-input";
-    taxAmountInput.min = "0";
     taxAmountInput.step = "0.01";
-    taxAmountInput.setAttribute("aria-label", "Tax amount in rupees");
+    taxAmountInput.min = "0";
+    taxAmountInput.className = "cell-edit tax-amount-input";
+    taxAmountInput.value = Number(item.taxAmount || 0).toFixed(2);
+    taxAmountInput.style.width = "75px";
     taxAmountInput.addEventListener("input", () => {
       item.taxAmountOverride = Number(taxAmountInput.value);
       recalcItem(item);
@@ -1162,9 +1464,18 @@ function renderEstimate() {
       updateTotals();
     });
     taxAmountCell.appendChild(taxAmountInput);
-    row.insertBefore(taxAmountCell, amountCell);
+    row.appendChild(taxAmountCell);
 
-    // Action cell
+    // 13. Line Total (₹) Cell
+    const lineTotalCell = document.createElement("td");
+    lineTotalCell.className = "line-total-cell";
+    lineTotalCell.style.fontWeight = "700";
+    lineTotalCell.style.color = "#15803d";
+    lineTotalCell.style.whiteSpace = "nowrap";
+    lineTotalCell.textContent = GlassCareCalc.formatMoney(item.lineTotal || 0);
+    row.appendChild(lineTotalCell);
+
+    // 14. Action Cell
     const actionCell = document.createElement("td");
     actionCell.className = "action-cell";
     const editBtn = document.createElement("button");
@@ -1184,16 +1495,14 @@ function renderEstimate() {
       editBtn.hidden = true;
       saveBtn.hidden = false;
       cancelBtn.hidden = false;
-      rowFields.forEach(field => { if (!field.classList.contains("amount-cell")) field.disabled = false; });
+      rowFields.forEach(field => { field.disabled = false; });
     });
     saveBtn.addEventListener("click", () => {
       recalcItem(item);
-      if (item.errors?.length) {
+      if (item.errors && item.errors.length) {
         alert(`Please correct this item: ${item.errors[0]}`);
         return;
       }
-      delete item.factory;
-      delete item.vendor;
       renderEstimate();
     });
     cancelBtn.addEventListener("click", () => {
@@ -1205,21 +1514,18 @@ function renderEstimate() {
     });
     row.dataset.original = JSON.stringify({ ...item });
     actionCell.append(editBtn, saveBtn, cancelBtn);
+
     const deleteBtn = document.createElement("button");
     deleteBtn.className = "action-btn";
     deleteBtn.textContent = "🗑";
+    deleteBtn.title = "Delete item";
     deleteBtn.addEventListener("click", () => deleteItem(item.id));
     actionCell.appendChild(deleteBtn);
+
     const rowError = document.createElement("span");
     rowError.className = "row-error";
-    rowError.setAttribute("role", "alert");
     actionCell.appendChild(rowError);
     row.appendChild(actionCell);
-
-    // number cell prepended
-    const numCell = document.createElement("td");
-    numCell.textContent = index + 1;
-    row.insertBefore(numCell, row.firstChild);
 
     estimateBody.appendChild(row);
     refreshRowCalcs(row, item);
@@ -1232,38 +1538,36 @@ function renderEstimate() {
 
 /* Update the read-only Area and Amount cells of a row without a full re-render */
 function refreshRowCalcs(row, item) {
-  const areaCell = row.querySelector(".area-cell");
   const measureInput = row.querySelector(".measure-input");
-  const amountCell = row.querySelector(".amount-cell");
+  const taxableInput = row.querySelector(".taxable-amount-input");
   const taxAmountInput = row.querySelector(".tax-amount-input");
-  const amountInput = row.querySelector(".taxable-amount-input");
-  const thickDepthInput = row.querySelector(".thickness-depth-input");
-  if (thickDepthInput && document.activeElement !== thickDepthInput) {
-    thickDepthInput.value = item.thickness || "";
-    thickDepthInput.placeholder = item.unit === "Cubic Ft" ? "Depth" : "10";
-    thickDepthInput.title = item.unit === "Cubic Ft" ? "Depth in mm" : "Thickness in mm";
-  }
-  if (document.activeElement !== measureInput) {
-    measureInput.value = (item.unit === "R.ft")
-      ? Number(item.measure || 0).toFixed(2)
-      : Number(item.measure || 0).toFixed(3);
-  }
-  measureInput.title = item.measureLabel;
-  measureInput.disabled = ["Pcs", "Job"].includes(item.unit);
-  if (document.activeElement !== amountInput) amountInput.value = Number(item.taxableAmount || 0);
-  if (document.activeElement !== taxAmountInput) taxAmountInput.value = Number(item.taxAmount || 0);
+  const lineTotalCell = row.querySelector(".line-total-cell");
   const roundedNote = row.querySelector(".rounded-note");
+
+  if (document.activeElement !== measureInput && measureInput) {
+    measureInput.value = Number(item.measure || 0).toFixed(item.basis === "Running Ft" ? 2 : 3);
+    measureInput.title = item.measureLabel || "";
+  }
+  if (document.activeElement !== taxableInput && taxableInput) {
+    taxableInput.value = Number(item.taxableAmount || 0).toFixed(2);
+  }
+  if (document.activeElement !== taxAmountInput && taxAmountInput) {
+    taxAmountInput.value = Number(item.taxAmount || 0).toFixed(2);
+  }
+  if (lineTotalCell) {
+    lineTotalCell.textContent = GlassCareCalc.formatMoney(item.lineTotal || 0);
+  }
   if (roundedNote) {
-    if (item.unit === "Sqft") {
-      const h = item.chartH || (GlassCareCalculations.chartLookup ? GlassCareCalculations.chartLookup(item.height) : null);
-      const w = item.chartW || (GlassCareCalculations.chartLookup ? GlassCareCalculations.chartLookup(item.width) : null);
-      roundedNote.textContent = (h && w) ? `${h.mm.toFixed(1)} × ${w.mm.toFixed(1)} mm` : "";
+    if (item.round3Inch && (item.billedHeightMm !== item.heightMm || item.billedWidthMm !== item.widthMm)) {
+      roundedNote.textContent = `${item.billedHeightMm.toFixed(1)} × ${item.billedWidthMm.toFixed(1)} mm (rounded)`;
     } else {
       roundedNote.textContent = "";
     }
   }
   const rowError = row.querySelector(".row-error");
-  if (rowError) rowError.textContent = (item.errors || []).join(" ");
+  if (rowError) {
+    rowError.textContent = (item.errors || []).join(" ");
+  }
 }
 
 /* DELETE */
@@ -1376,37 +1680,23 @@ function updateTotals() {
     }
   }
   grandTotalDisplay.textContent = formatMoney(totals.payable, 0);
-  amountWords.textContent = numberToWords(totals.payable) + " Only";
+  amountWords.textContent = GlassCareCalc.formatIndianWords(totals.payable);
   try { localStorage.setItem("glassCareEstimate", JSON.stringify(estimateItems)); } catch { /* storage may be disabled */ }
   persistDraft();
 }
 
 /* MONEY FORMAT */
 function formatMoney(value) {
-  return GlassCareCalculations.formatMoney(value);
+  return GlassCareCalc.formatMoney(value);
 }
 
 /* AMOUNT IN WORDS */
 function numberToWords(num) {
-  if (num === 0) return "Rupees Zero";
-  const ones = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten",
-    "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen"];
-  const tens = ["", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"];
-
-  function convert(n) {
-    if (n < 20) return ones[n];
-    if (n < 100) return (tens[Math.floor(n / 10)] + " " + ones[n % 10]).trim();
-    if (n < 1000) return (ones[Math.floor(n / 100)] + " Hundred " + convert(n % 100)).trim();
-    if (n < 100000) return (convert(Math.floor(n / 1000)) + " Thousand " + convert(n % 1000)).trim();
-    if (n < 10000000) return (convert(Math.floor(n / 100000)) + " Lakh " + convert(n % 100000)).trim();
-    return (convert(Math.floor(n / 10000000)) + " Crore " + convert(n % 10000000)).trim();
-  }
-
-  return "Rupees " + convert(num);
+  return GlassCareCalc.formatIndianWords(num);
 }
 
 /* EVENTS */
-[height, width, thickness, quantity, rate, discountPercent, gstRateInput, unitDisplay, cftDimUnit].forEach(el => {
+[height, width, thickness, quantity, rate, discountPercent, gstRateInput, unitDisplay, dimensionUnitSelect, round3InchToggle].forEach(el => {
   if (el) {
     el.addEventListener("input", updateCalculation);
     el.addEventListener("change", updateCalculation);
@@ -1414,6 +1704,19 @@ function numberToWords(num) {
 });
 if (customerState) customerState.addEventListener("change", () => { updateTotals(); persistDraft(); });
 document.getElementById("estimateDate")?.addEventListener("change", persistDraft);
+
+if (globalRound3InchSetting) {
+  const savedDefault = localStorage.getItem("glasscare_round3inch_default") === "true";
+  globalRound3InchSetting.checked = savedDefault;
+  if (round3InchToggle) round3InchToggle.checked = savedDefault;
+  globalRound3InchSetting.addEventListener("change", () => {
+    localStorage.setItem("glasscare_round3inch_default", String(globalRound3InchSetting.checked));
+    if (round3InchToggle) {
+      round3InchToggle.checked = globalRound3InchSetting.checked;
+      updateCalculation();
+    }
+  });
+}
 
 /* START */
 let hasInitialized = false;

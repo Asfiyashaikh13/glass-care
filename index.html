@@ -286,32 +286,46 @@
           </div>
         </div>
         <div class="measurement-grid">
+          <div class="field" style="max-width:130px;">
+            <label for="dimensionUnit">Unit</label>
+            <select id="dimensionUnit">
+              <option value="mm" selected>mm</option>
+              <option value="in">Inches (in)</option>
+              <option value="cm">cm</option>
+              <option value="ft">Feet (ft)</option>
+            </select>
+          </div>
           <div class="field">
-            <label id="heightLabel">Frame Height (mm)</label>
+            <label id="heightLabel">Length (mm)</label>
             <input
               type="number"
               id="height"
               placeholder="1800"
               min="0"
+              step="any"
             >
+            <div class="unit-preview" id="heightPreview"></div>
           </div>
           <div class="multiply">
             ×
           </div>
           <div class="field">
-            <label id="widthLabel">Frame Width (mm)</label>
+            <label id="widthLabel">Width (mm)</label>
             <input
               type="number"
               id="width"
               placeholder="1200"
               min="0"
+              step="any"
             >
+            <div class="unit-preview" id="widthPreview"></div>
           </div>
           <div class="field" id="thicknessField">
             <label id="thicknessLabel">Thickness (mm)</label>
             <input type="number" id="thickness" placeholder="10" min="0" step="any">
+            <div class="unit-preview" id="thicknessPreview"></div>
           </div>
-          <div class="field">
+          <div class="field" style="max-width:110px;">
             <label>Quantity</label>
             <input
               type="number"
@@ -320,16 +334,21 @@
               min="1"
             >
           </div>
+          <div class="field round3inch-field" style="display:flex;align-items:center;padding-top:20px;">
+            <label style="display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:#334155;cursor:pointer;" title="Rounds each side UP to next 3 inches (76.2 mm)">
+              <input type="checkbox" id="round3InchToggle">
+              <span>Round up 3″ (76.2 mm)</span>
+            </label>
+          </div>
         </div>
         <div class="product-details">
           <div class="field">
-            <label>Unit <span id="cftDimUnitWrap" style="display:none;font-size:11.5px;color:#2563eb;font-weight:normal;margin-left:6px;">Dimensions: <select id="cftDimUnit" style="padding:1px 4px;font-size:11.5px;border:1px solid #94a3b8;border-radius:4px;background:#f8fafc;"><option value="in" selected>Inches (in)</option><option value="mm">Millimetres (mm)</option></select></span></label>
+            <label>Charge by (Basis) <span id="basisOverriddenTag" class="overridden-tag" style="display:none;color:#dc2626;font-size:11px;font-weight:600;margin-left:4px;">(overridden)</span></label>
             <select id="unitDisplay">
-              <option value="Sqft">Sqft</option>
-              <option value="R.ft">R.ft</option>
+              <option value="Sq Ft">Sq Ft</option>
+              <option value="Running Ft">Running Ft</option>
               <option value="Cubic Ft">Cubic Ft</option>
-              <option value="Pcs">Pcs</option>
-              <option value="Job">Job</option>
+              <option value="Per Piece">Per Piece</option>
             </select>
           </div>
           <div class="field">
@@ -391,8 +410,19 @@
             </strong>
           </div>
         </div>
+        <div id="calculationExplanation" class="calc-explanation" style="font-size:12.5px;color:#1e40af;background:#eff6ff;padding:8px 12px;border-radius:6px;border:1px solid #bfdbfe;margin-top:10px;"></div>
         <div class="formula" id="formulaNote">
-          ⓘ Sqft: each side is taken from the client size chart (next 3-inch step), converted to feet (inches / 12), then Area = Height ft x Width ft x Qty, Amount = Area x Rate x (1 - Discount%/100). R.ft and Pcs/Job are unchanged.
+          ⓘ Sqft: each side is converted from mm to feet (or rounded up to next 3-inch step if enabled), then Area = Height ft × Width ft × Qty, Amount = Area × Rate × (1 − Discount%/100).
+        </div>
+        <div id="sanityWarningContainer" class="sanity-warning-container" style="display:none;background:#fefce8;border:1px solid #fef08a;border-left:4px solid #eab308;padding:10px 14px;border-radius:6px;margin:12px 0;">
+          <div style="font-weight:600;color:#854d0e;margin-bottom:6px;display:flex;align-items:center;gap:6px;">
+            <span>⚠️</span> <span>Please check dimensions and pricing:</span>
+          </div>
+          <ul id="sanityWarningList" style="margin:0 0 8px 18px;padding:0;color:#713f12;font-size:12.5px;line-height:1.4;"></ul>
+          <label style="display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:#854d0e;cursor:pointer;">
+            <input type="checkbox" id="confirmSanityCheckbox" style="accent-color:#ca8a04;">
+            <span>I confirm these values are correct</span>
+          </label>
         </div>
         <div class="add-action">
           <span id="calculationHint" role="status" aria-live="polite">
@@ -416,21 +446,22 @@
         </div>
         <p class="edit-hint">Click any cell to edit it directly. Amount recalculates automatically.</p>
         <div class="table-wrapper">
-          <table>
+          <table class="estimate-table">
             <thead>
               <tr>
                 <th>#</th>
                 <th>CATEGORY / ITEM</th>
-                <th>SIZE (mm)</th>
-                <th>THICKNESS / DEPTH (mm)</th>
-                <th>UNIT</th>
+                <th>SIZE (<span class="dim-unit-header">mm</span>)</th>
+                <th>THICKNESS / DEPTH (<span class="dim-unit-header">mm</span>)</th>
                 <th>QTY</th>
-                <th>AREA / RUN FT / VOLUME</th>
+                <th>BASIS</th>
+                <th>QTY USED</th>
                 <th>RATE (₹)</th>
                 <th>DISCOUNT (%)</th>
+                <th>TAXABLE (₹)</th>
                 <th>GST (%)</th>
                 <th>GST AMOUNT (₹)</th>
-                <th>TAXABLE AMOUNT (₹)</th>
+                <th>LINE TOTAL (₹)</th>
                 <th>ACTION</th>
               </tr>
             </thead>
@@ -494,6 +525,13 @@
         <button type="button" class="saved-docs-tab" data-filter="Bill" role="tab" aria-selected="false">Bills</button>
         <button type="button" class="saved-docs-tab" data-filter="Invoice" role="tab" aria-selected="false">Invoices</button>
       </div>
+      <div class="saved-docs-tools" style="display:flex;align-items:center;gap:12px;margin-left:auto;">
+        <button type="button" id="backupDataJsonBtn" class="btn-backup-json" style="background:#0284c7;color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:12px;cursor:pointer;font-weight:500;">💾 Backup Data (JSON)</button>
+        <label style="font-size:12px;display:inline-flex;align-items:center;gap:6px;color:#475569;cursor:pointer;" title="Default 'Round size up to next 3 inches' for newly added items">
+          <input type="checkbox" id="globalRound3InchSetting" style="accent-color:#0284c7;">
+          <span>Default 3″ rounding</span>
+        </label>
+      </div>
     </div>
     <div id="savedDocumentsList" class="saved-documents-list">No documents generated yet.</div>
   </section>
@@ -520,13 +558,15 @@
   </div>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="supabase-config.js?v=glasscare-v7"></script>
-<script src="supabase-store.js?v=glasscare-v7"></script>
-<script src="data.js?v=glasscare-v7"></script>
-<script src="size-chart.js?v=glasscare-v7"></script>
-<script src="calculations.js?v=glasscare-v7"></script>
-<script src="html2pdf.bundle.min.js?v=glasscare-v7"></script>
-<script src="script.js?v=glasscare-v7"></script>
-<script src="documents.js?v=glasscare-v7"></script>
+<script src="supabase-config.js?v=glasscare-v8"></script>
+<script src="supabase-store.js?v=glasscare-v8"></script>
+<script src="data.js?v=glasscare-v8"></script>
+<script src="size-chart.js?v=glasscare-v8"></script>
+<script src="decimal.js?v=glasscare-v8"></script>
+<script src="calc.js?v=glasscare-v8"></script>
+<script src="calculations.js?v=glasscare-v8"></script>
+<script src="html2pdf.bundle.min.js?v=glasscare-v8"></script>
+<script src="script.js?v=glasscare-v8"></script>
+<script src="documents.js?v=glasscare-v8"></script>
 </body>
 </html>
