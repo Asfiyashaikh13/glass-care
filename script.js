@@ -957,9 +957,19 @@ function updateCalculation() {
     }
     const hasDims = calc.h > 0 && calc.w > 0 && calc.thickness > 0;
     originalSize.textContent = hasDims ? `${calc.h} × ${calc.w} × ${calc.thickness} ${dimUnit}` : `Length × width × depth required`;
-    roundedSize.textContent = hasDims ? `${calc.heightMm.toFixed(1)} × ${calc.widthMm.toFixed(1)} × ${calc.thicknessMm.toFixed(1)} mm` : `-- × -- × -- mm`;
+    if (hasDims) {
+      if (calc.round3Inch && (calc.billedHeightMm !== calc.heightMm || calc.billedWidthMm !== calc.widthMm || calc.billedThicknessMm !== calc.thicknessMm)) {
+        roundedSize.textContent = `${calc.billedHeightMm.toFixed(1)} × ${calc.billedWidthMm.toFixed(1)} × ${calc.billedThicknessMm.toFixed(1)} mm (rounded)`;
+      } else {
+        roundedSize.textContent = `${calc.heightMm.toFixed(1)} × ${calc.widthMm.toFixed(1)} × ${calc.thicknessMm.toFixed(1)} mm`;
+      }
+    } else {
+      roundedSize.textContent = `-- × -- × -- mm`;
+    }
     areaDisplay.textContent = `${calc.volume.toFixed(3)} Cubic Ft`;
-    document.getElementById("calculationHint").textContent = `Cubic feet calculated from exact volume in ${dimUnit}.`;
+    document.getElementById("calculationHint").textContent = calc.round3Inch
+      ? "Cubic feet calculated with 3-inch (76.2 mm) rounding enabled."
+      : `Cubic feet calculated from exact volume in ${dimUnit}.`;
   } else {
     // Per Piece
     if (areaCardLabel) areaCardLabel.textContent = "Quantity";
@@ -1255,8 +1265,12 @@ function renderEstimate() {
       roundedNote.className = "rounded-note";
       roundedNote.style.fontSize = "11px";
       roundedNote.style.color = "#059669";
-      if (item.round3Inch && (item.billedHeightMm !== item.heightMm || item.billedWidthMm !== item.widthMm)) {
-        roundedNote.textContent = `${item.billedHeightMm.toFixed(1)} × ${item.billedWidthMm.toFixed(1)} mm (rounded)`;
+      if (item.round3Inch && (item.billedHeightMm !== item.heightMm || item.billedWidthMm !== item.widthMm || (item.basis === "Cubic Ft" && item.billedThicknessMm !== item.thicknessMm))) {
+        if (item.basis === "Cubic Ft") {
+          roundedNote.textContent = `${item.billedHeightMm.toFixed(1)} × ${item.billedWidthMm.toFixed(1)} × ${item.billedThicknessMm.toFixed(1)} mm (rounded)`;
+        } else {
+          roundedNote.textContent = `${item.billedHeightMm.toFixed(1)} × ${item.billedWidthMm.toFixed(1)} mm (rounded)`;
+        }
       }
       sizeCell.appendChild(roundedNote);
     }
@@ -1559,8 +1573,12 @@ function refreshRowCalcs(row, item) {
     lineTotalCell.textContent = GlassCareCalc.formatMoney(item.lineTotal || 0);
   }
   if (roundedNote) {
-    if (item.round3Inch && (item.billedHeightMm !== item.heightMm || item.billedWidthMm !== item.widthMm)) {
-      roundedNote.textContent = `${item.billedHeightMm.toFixed(1)} × ${item.billedWidthMm.toFixed(1)} mm (rounded)`;
+    if (item.round3Inch && (item.billedHeightMm !== item.heightMm || item.billedWidthMm !== item.widthMm || (item.basis === "Cubic Ft" && item.billedThicknessMm !== item.thicknessMm))) {
+      if (item.basis === "Cubic Ft") {
+        roundedNote.textContent = `${item.billedHeightMm.toFixed(1)} × ${item.billedWidthMm.toFixed(1)} × ${item.billedThicknessMm.toFixed(1)} mm (rounded)`;
+      } else {
+        roundedNote.textContent = `${item.billedHeightMm.toFixed(1)} × ${item.billedWidthMm.toFixed(1)} mm (rounded)`;
+      }
     } else {
       roundedNote.textContent = "";
     }

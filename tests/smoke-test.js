@@ -120,6 +120,31 @@ async function run() {
     console.log("Warning text:", warnText);
     assert.ok(/exceeds 300 mm/i.test(warnText), "Warning must mention exceeding 300 mm depth");
 
+    // 5. Test Cubic Ft with 3-inch (76.2 mm) rounding: 2290 x 760 x 460 mm -> 2362.2 x 762.0 x 533.4 mm -> 33.906 Cubic Ft
+    await dimUnitSelect.selectOption("mm");
+    await page.locator("#unitDisplay").selectOption("Cubic Ft");
+    if (!(await roundToggle.isChecked())) {
+      await roundToggle.check();
+    }
+    await page.locator("#height").fill("2290");
+    await page.locator("#width").fill("760");
+    await page.locator("#thickness").fill("460");
+    await page.locator("#rate").evaluate(el => { el.removeAttribute("readonly"); el.value = "225"; el.dispatchEvent(new Event("input")); });
+    await page.locator("#discountPercent").fill("0");
+    await page.waitForTimeout(200);
+
+    const cftDisplay = await page.locator("#areaDisplay").textContent();
+    console.log("Cubic feet display for 2290 x 760 x 460 mm with 3-inch rounding:", cftDisplay);
+    assert.ok(cftDisplay.includes("33.906"), `Cubic feet should be 33.906 CFT, got ${cftDisplay}`);
+
+    const dimsUsed = await page.locator("#roundedSize").textContent();
+    console.log("Dimensions used display:", dimsUsed);
+    assert.ok(dimsUsed.includes("2362.2") && dimsUsed.includes("762.0") && dimsUsed.includes("533.4"), "Dimensions used must show rounded 2362.2 x 762.0 x 533.4 mm");
+
+    const amountCft = await page.locator("#amountDisplay").textContent();
+    console.log("Payable amount for 33.90625 CFT at ₹225:", amountCft);
+    assert.strictEqual(amountCft, "₹7,628.91", "Amount should be ₹7,628.91");
+
     console.log("All Playwright browser smoke test assertions PASSED!");
   } finally {
     if (browser) await browser.close();

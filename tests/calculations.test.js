@@ -345,5 +345,25 @@ test("spec: Indian words: 3394 -> 'Rupees Three Thousand Three Hundred Ninety Fo
   assert.equal(calculations.formatIndianWords(3394), "Rupees Three Thousand Three Hundred Ninety Four Only");
 });
 
+test("spec: 2290 x 760 x 460 mm, Cubic Ft with 3-inch rounding (76.2mm) -> 2362.2 x 762.0 x 533.4 mm -> volume 33.90625 CFT / 28316846.592", () => {
+  const item = calculations.calculateLine(line({
+    dimensionUnit: "mm",
+    height: 2290,
+    width: 760,
+    thickness: 460,
+    unit: "Cubic Ft",
+    quantity: 1,
+    rate: 225,
+    discountPercent: 0,
+    round3Inch: true
+  }));
+  assert.equal(item.billedHeightMm, 2362.2);
+  assert.equal(item.billedWidthMm, 762.0);
+  assert.equal(item.billedThicknessMm, 533.4);
+  assert.equal(item.measure.toFixed(5), "33.90625");
+  assert.equal(item.grossAmount, 7628.91);
+});
+
+
 
 

@@ -74,13 +74,13 @@
   function toMm(val, unit) {
     const num = Number(val) || 0;
     const factor = CONVERSION_FACTORS_TO_MM[normalizeUnit(unit)] || 1;
-    return num * factor;
+    return new Decimal(num).times(factor).toNumber();
   }
 
   function fromMm(mmVal, targetUnit) {
     const num = Number(mmVal) || 0;
     const factor = CONVERSION_FACTORS_TO_MM[normalizeUnit(targetUnit)] || 1;
-    return num / factor;
+    return new Decimal(num).dividedBy(factor).toNumber();
   }
 
   function round3InchMm(sizeMm) {
@@ -270,9 +270,12 @@
     let billedWMm = wMm;
     let billedDMm = dMm;
 
-    if (round3Inch && (basis === "Sq Ft" || basis === "Running Ft")) {
+    if (round3Inch) {
       billedHMm = round3InchMm(hMm);
       billedWMm = round3InchMm(wMm);
+      if (basis === "Cubic Ft") {
+        billedDMm = round3InchMm(dMm);
+      }
     }
 
     let measure = 0;
@@ -289,7 +292,7 @@
 
       const origText = `${enteredH} × ${enteredW} ${dimUnit}`;
       if (round3Inch && (billedHMm !== hMm || billedWMm !== wMm)) {
-        stepFormula = `${origText} → rounded ${billedHMm} × ${billedWMm} mm → ${decMeasure.toFixed(3)} sq ft × ₹${rate}`;
+        stepFormula = `${origText} → rounded ${billedHMm.toFixed(1)} × ${billedWMm.toFixed(1)} mm → ${decMeasure.toFixed(3)} sq ft × ₹${rate}`;
       } else {
         stepFormula = `${origText} → ${decMeasure.toFixed(3)} sq ft × ₹${rate}`;
       }
@@ -303,23 +306,28 @@
 
       const origText = `${enteredH} × ${enteredW} ${dimUnit}`;
       if (round3Inch && (billedHMm !== hMm || billedWMm !== wMm)) {
-        stepFormula = `2 × (${billedHMm} + ${billedWMm} mm rounded) ÷ 304.8 × ${quantity} → ${decMeasure.toFixed(3)} R.ft × ₹${rate}`;
+        stepFormula = `2 × (${billedHMm.toFixed(1)} + ${billedWMm.toFixed(1)} mm rounded) ÷ 304.8 × ${quantity} → ${decMeasure.toFixed(3)} R.ft × ₹${rate}`;
       } else {
         stepFormula = `2 × (${enteredH} + ${enteredW} ${dimUnit}) ÷ 304.8 × ${quantity} → ${decMeasure.toFixed(3)} R.ft × ₹${rate}`;
       }
     } else if (basis === "Cubic Ft") {
       if (hMm <= 0 || wMm <= 0 || dMm <= 0) errors.push("Length, width and thickness/depth in mm are required for Cubic Ft.");
-      // In inches: L_in * W_in * D_in / 1728
-      // In mm: L_mm * W_mm * D_mm / 28316846.592
-      let decMeasure;
-      if (dimUnit === "in") {
-        decMeasure = new Decimal(enteredH).times(enteredW).times(enteredD).dividedBy(1728).times(quantity);
-      } else {
-        decMeasure = new Decimal(hMm).times(wMm).times(dMm).dividedBy(CUBIC_FOOT_MM).times(quantity);
-      }
+      // Universal formula: (billedHeightMm * billedWidthMm * billedDepthMm) / 28,316,846.592 * Qty
+      const decMeasure = new Decimal(billedHMm)
+        .times(new Decimal(billedWMm))
+        .times(new Decimal(billedDMm))
+        .dividedBy(new Decimal("28316846.592"))
+        .times(new Decimal(quantity));
+
       measure = decMeasure.toNumber();
       measureLabel = `${decMeasure.toFixed(3)} Cubic Ft`;
-      stepFormula = `${enteredH} × ${enteredW} × ${enteredD} ${dimUnit} → ${decMeasure.toFixed(4)} cu ft × ₹${rate}`;
+
+      const origText = `${enteredH} × ${enteredW} × ${enteredD} ${dimUnit}`;
+      if (round3Inch && (billedHMm !== hMm || billedWMm !== wMm || billedDMm !== dMm)) {
+        stepFormula = `${origText} → rounded ${billedHMm.toFixed(1)} × ${billedWMm.toFixed(1)} × ${billedDMm.toFixed(1)} mm → ${decMeasure.toFixed(4)} cu ft × ₹${rate}`;
+      } else {
+        stepFormula = `${origText} → ${decMeasure.toFixed(4)} cu ft × ₹${rate}`;
+      }
     } else {
       // Per Piece
       measure = quantity;
