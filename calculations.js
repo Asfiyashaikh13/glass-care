@@ -59,6 +59,7 @@
     let formula = "Quantity × rate";
     let chartH = null;
     let chartW = null;
+    let isInch = item.dimensionUnit === "in";
 
     if (unit === "Sqft") {
       if (length <= 0 || width <= 0) errors.push("Length and width in mm are required for Sqft.");
@@ -76,9 +77,16 @@
       formula = `2 × (${length} mm + ${width} mm) × ${quantity} ÷ ${MM_PER_FOOT} × ₹${rate}`;
     } else if (unit === "Cubic Ft") {
       if (length <= 0 || width <= 0 || thickness <= 0) errors.push("Length, width and thickness/depth in mm are required for Cubic Ft.");
-      measure = length * width * thickness * quantity / CUBIC_FOOT_MM;
-      measureLabel = `${measure.toFixed(3)} Cubic Ft`;
-      formula = `${length} mm × ${width} mm × ${thickness} mm × ${quantity} ÷ ${CUBIC_FOOT_MM} × ₹${rate}`;
+      isInch = item.dimensionUnit === "in" || (!item.dimensionUnit && length <= 120 && width <= 120 && thickness <= 120);
+      if (isInch) {
+        measure = (length > 0 && width > 0 && thickness > 0) ? (length * width * thickness * quantity / 1728) : 0;
+        measureLabel = `${measure.toFixed(3)} Cubic Ft`;
+        formula = `${length} in × ${width} in × ${thickness} in × ${quantity} ÷ 1,728 × ₹${rate}`;
+      } else {
+        measure = (length > 0 && width > 0 && thickness > 0) ? (length * width * thickness * quantity / CUBIC_FOOT_MM) : 0;
+        measureLabel = `${measure.toFixed(3)} Cubic Ft`;
+        formula = `${length} mm × ${width} mm × ${thickness} mm × ${quantity} ÷ ${CUBIC_FOOT_MM} × ₹${rate}`;
+      }
     } else if (!["Pcs", "Job"].includes(unit)) {
       errors.push("Select a supported unit.");
     }
@@ -128,6 +136,7 @@
       height: length,
       width,
       thickness,
+      isInch: !!isInch,
       chartH,
       chartW,
       gstRate: effectiveGstRate,

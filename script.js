@@ -24,6 +24,8 @@ const rate = document.getElementById("rate");
 const discountPercent = document.getElementById("discountPercent");
 const gstRateInput = document.getElementById("gstRate");
 const unitDisplay = document.getElementById("unitDisplay");
+const cftDimUnit = document.getElementById("cftDimUnit");
+const cftDimUnitWrap = document.getElementById("cftDimUnitWrap");
 const originalSize = document.getElementById("originalSize");
 const roundedSize = document.getElementById("roundedSize");
 const areaDisplay = document.getElementById("areaDisplay");
@@ -721,6 +723,7 @@ function generateEstimateNumber() {
 function getCalculation() {
   const line = GlassCareCalculations.calculateLine({
     unit: unitDisplay.value,
+    dimensionUnit: unitDisplay.value === "Cubic Ft" ? (cftDimUnit ? cftDimUnit.value : "in") : undefined,
     quantity: quantity.value,
     rate: rate.value,
     discountPercent: discountPercent.value,
@@ -753,6 +756,7 @@ function updateCalculation() {
   const formulaNote = document.getElementById("formulaNote");
 
   if (calc.unit === "Sqft") {
+    if (cftDimUnitWrap) cftDimUnitWrap.style.display = "none";
     if (thicknessLabel) thicknessLabel.textContent = "Thickness (mm)";
     if (heightLabel) heightLabel.textContent = "Frame Height (mm)";
     if (widthLabel) widthLabel.textContent = "Frame Width (mm)";
@@ -772,6 +776,7 @@ function updateCalculation() {
     areaDisplay.textContent = `${calc.area.toFixed(3)} Sqft`;
     document.getElementById("calculationHint").textContent = "Area calculated from client size chart (next 3-inch step).";
   } else if (calc.unit === "R.ft") {
+    if (cftDimUnitWrap) cftDimUnitWrap.style.display = "none";
     if (thicknessLabel) thicknessLabel.textContent = "Thickness (mm)";
     if (heightLabel) heightLabel.textContent = "Frame Height (mm)";
     if (widthLabel) widthLabel.textContent = "Frame Width (mm)";
@@ -781,19 +786,28 @@ function updateCalculation() {
     areaDisplay.textContent = `${calc.runningFeet.toFixed(2)} R.ft`;
     document.getElementById("calculationHint").textContent = "Running feet calculated from the entered perimeter.";
   } else if (calc.unit === "Cubic Ft") {
-    if (thicknessLabel) thicknessLabel.textContent = "Depth (mm)";
-    if (heightLabel) heightLabel.textContent = "Length (mm)";
-    if (widthLabel) widthLabel.textContent = "Width (mm)";
-    if (thickness) thickness.placeholder = "100";
+    if (cftDimUnitWrap) cftDimUnitWrap.style.display = "inline-block";
+    const dimUnit = (cftDimUnit?.value === "mm" || (!cftDimUnit && !calc.isInch)) ? "mm" : "in";
+    if (thicknessLabel) thicknessLabel.textContent = `Depth (${dimUnit})`;
+    if (heightLabel) heightLabel.textContent = `Length (${dimUnit})`;
+    if (widthLabel) widthLabel.textContent = `Width (${dimUnit})`;
+    if (thickness) thickness.placeholder = dimUnit === "in" ? "12" : "100";
     if (areaCardLabel) areaCardLabel.textContent = "Cubic Feet";
+    const dimSymbol = dimUnit === "in" ? "in" : "mm";
     if (formulaNote) {
-      formulaNote.textContent = "ⓘ Cubic Ft: Volume = (Length mm × Width mm × Depth mm ÷ 28,316,847) × Qty. Amount = Volume × Rate × (1 - Discount%/100).";
+      if (dimUnit === "in") {
+        formulaNote.textContent = "ⓘ Cubic Ft: Volume = (Length in × Width in × Depth in ÷ 1,728) × Qty. Amount = Volume × Rate × (1 - Discount%/100).";
+      } else {
+        formulaNote.textContent = "ⓘ Cubic Ft: Volume = (Length mm × Width mm × Depth mm ÷ 28,316,847) × Qty. Amount = Volume × Rate × (1 - Discount%/100).";
+      }
     }
-    originalSize.textContent = calc.h && calc.w && calc.thickness ? `${calc.h} × ${calc.w} × ${calc.thickness} mm` : "Length × width × depth required";
-    roundedSize.textContent = calc.h && calc.w && calc.thickness ? `${calc.h} × ${calc.w} × ${calc.thickness} mm` : "-- × -- × -- mm";
+    const hasDims = calc.h > 0 && calc.w > 0 && calc.thickness > 0;
+    originalSize.textContent = hasDims ? `${calc.h} × ${calc.w} × ${calc.thickness} ${dimSymbol}` : `Length × width × depth required`;
+    roundedSize.textContent = hasDims ? `${calc.h} × ${calc.w} × ${calc.thickness} ${dimSymbol}` : `-- × -- × -- ${dimSymbol}`;
     areaDisplay.textContent = `${calc.measure.toFixed(3)} Cubic Ft`;
-    document.getElementById("calculationHint").textContent = "Cubic feet uses Length × Width × Depth in mm (converted to Cubic Feet).";
+    document.getElementById("calculationHint").textContent = `Cubic feet uses Length × Width × Depth in ${dimUnit === "in" ? "inches (÷ 1,728)" : "mm (÷ 28,316,847)"}.`;
   } else {
+    if (cftDimUnitWrap) cftDimUnitWrap.style.display = "none";
     if (thicknessLabel) thicknessLabel.textContent = "Thickness (mm)";
     if (heightLabel) heightLabel.textContent = "Frame Height (mm)";
     if (widthLabel) widthLabel.textContent = "Frame Width (mm)";
@@ -845,9 +859,11 @@ document.getElementById("addItem").addEventListener("click", function () {
     category: categoryValue,
     itemName: itemNameValue,
     unit: calc.unit,
+    dimensionUnit: calc.unit === "Cubic Ft" ? (calc.isInch ? "in" : "mm") : undefined,
     height: calc.h,
     width: calc.w,
     thickness: calc.thickness,
+    isInch: !!calc.isInch,
     quantity: calc.qty,
     rate: calc.itemRate,
     discountPercent: calc.discount,
@@ -1390,8 +1406,11 @@ function numberToWords(num) {
 }
 
 /* EVENTS */
-[height, width, thickness, quantity, rate, discountPercent, gstRateInput, unitDisplay].forEach(el => {
-  if (el) el.addEventListener("input", updateCalculation);
+[height, width, thickness, quantity, rate, discountPercent, gstRateInput, unitDisplay, cftDimUnit].forEach(el => {
+  if (el) {
+    el.addEventListener("input", updateCalculation);
+    el.addEventListener("change", updateCalculation);
+  }
 });
 if (customerState) customerState.addEventListener("change", () => { updateTotals(); persistDraft(); });
 document.getElementById("estimateDate")?.addEventListener("change", persistDraft);

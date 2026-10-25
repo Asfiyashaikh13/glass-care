@@ -182,4 +182,13 @@ test("preserves thickness for Sqft and depth for Cubic Ft", () => {
   assert.equal(cftItem.amount, 800);
 });
 
+test("calculates Cubic Ft from inches (e.g. 12x12x12 in = 1 CFT)", () => {
+  const cftInch = calculations.calculateLine(line({ unit: "Cubic Ft", height: 12, width: 12, thickness: 12, rate: 400, discountPercent: 10 }));
+  assert.equal(cftInch.isInch, true);
+  assert.equal(cftInch.measure, 1);
+  assert.equal(cftInch.grossAmount, 400);
+  assert.equal(cftInch.taxableAmount, 360);
+  assert.equal(cftInch.amount, 360);
+});
+
 

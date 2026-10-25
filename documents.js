@@ -329,7 +329,11 @@
       }
     }
     const dims = [item.height, item.width];
-    if (item.unit === "Cubic Ft") dims.push(item.thickness);
+    if (item.unit === "Cubic Ft") {
+      dims.push(item.thickness);
+      const unitStr = (item.isInch || item.dimensionUnit === "in") ? "in" : "mm";
+      return `${dims.map(value => (Number.isInteger(value) ? value : value.toFixed(1))).join(" × ")} ${unitStr}`;
+    }
     return `${dims.map(value => Math.round(value)).join(" × ")} mm`;
   }
 
@@ -375,7 +379,8 @@
         const billedW = Number(sqftSizes.w.mm).toFixed(1);
         dimsBlock = `<div class="size-line">Original size: ${origH} × ${origW} mm</div><div class="size-line">Billed size: ${billedH} × ${billedW} mm (${sqftSizes.h.inch} × ${sqftSizes.w.inch} in)</div>`;
       } else if (line.unit !== "Pcs" && line.unit !== "Job") {
-        dimsBlock = `<div class="item-dims">Size in mm - ${escapeHtml(dims)}${line.quantity > 1 ? ` × ${line.quantity} nos` : ""}</div>`;
+        const sizeLabel = (line.unit === "Cubic Ft" && (line.isInch || line.dimensionUnit === "in")) ? "Size in inches" : "Size in mm";
+        dimsBlock = `<div class="item-dims">${sizeLabel} - ${escapeHtml(dims)}${line.quantity > 1 ? ` × ${line.quantity} nos` : ""}</div>`;
       }
 
       const pcsNote = ((line.unit === "Sqft" || line.unit === "Cubic Ft") && line.quantity > 1)
