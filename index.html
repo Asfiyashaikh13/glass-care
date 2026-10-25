@@ -285,18 +285,18 @@
             >
           </div>
         </div>
-        <div class="measurement-toolbar" style="display:flex;align-items:center;justify-content:space-between;margin-top:18px;margin-bottom:6px;padding:0 2px;flex-wrap:wrap;gap:10px;">
-          <div style="display:flex;align-items:center;gap:8px;">
-            <label for="dimensionUnit" style="font-size:12px;font-weight:bold;color:#536174;text-transform:uppercase;letter-spacing:0.5px;margin:0;">Dimension Unit:</label>
-            <select id="dimensionUnit" style="width:auto;height:34px;padding:2px 10px;font-size:13px;font-weight:600;border:1px solid #cbd5e1;border-radius:6px;background:#f8fafc;color:#1e293b;">
+        <div class="measurement-toolbar">
+          <div class="dimension-unit-group">
+            <label for="dimensionUnit" class="dimension-unit-label">Dimension Unit:</label>
+            <select id="dimensionUnit" class="dimension-unit-select">
               <option value="mm" selected>Millimetres (mm)</option>
               <option value="in">Inches (in)</option>
               <option value="cm">Centimetres (cm)</option>
               <option value="ft">Feet (ft)</option>
             </select>
           </div>
-          <label style="display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:#334155;cursor:pointer;" title="Rounds each side UP to next 3 inches (76.2 mm)">
-            <input type="checkbox" id="round3InchToggle" style="width:16px;height:16px;accent-color:#16a34a;">
+          <label class="round3inch-label" title="Rounds each side UP to next 3 inches (76.2 mm)">
+            <input type="checkbox" id="round3InchToggle">
             <span>Round up 3″ (76.2 mm)</span>
           </label>
         </div>
@@ -410,17 +410,17 @@
             </strong>
           </div>
         </div>
-        <div id="calculationExplanation" class="calc-explanation" style="font-size:12.5px;color:#1e40af;background:#eff6ff;padding:8px 12px;border-radius:6px;border:1px solid #bfdbfe;margin-top:10px;"></div>
+        <div id="calculationExplanation" class="calc-explanation"></div>
         <div class="formula" id="formulaNote">
           ⓘ Sqft: each side is converted from mm to feet (or rounded up to next 3-inch step if enabled), then Area = Height ft × Width ft × Qty, Amount = Area × Rate × (1 − Discount%/100).
         </div>
-        <div id="sanityWarningContainer" class="sanity-warning-container" style="display:none;background:#fefce8;border:1px solid #fef08a;border-left:4px solid #eab308;padding:10px 14px;border-radius:6px;margin:12px 0;">
-          <div style="font-weight:600;color:#854d0e;margin-bottom:6px;display:flex;align-items:center;gap:6px;">
+        <div id="sanityWarningContainer" class="sanity-warning-container" style="display:none;">
+          <div class="sanity-warning-header">
             <span>⚠️</span> <span>Please check dimensions and pricing:</span>
           </div>
-          <ul id="sanityWarningList" style="margin:0 0 8px 18px;padding:0;color:#713f12;font-size:12.5px;line-height:1.4;"></ul>
-          <label style="display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:#854d0e;cursor:pointer;">
-            <input type="checkbox" id="confirmSanityCheckbox" style="accent-color:#ca8a04;">
+          <ul id="sanityWarningList" class="sanity-warning-list"></ul>
+          <label class="sanity-confirm-label">
+            <input type="checkbox" id="confirmSanityCheckbox">
             <span>I confirm these values are correct</span>
           </label>
         </div>
