@@ -287,7 +287,7 @@
         </div>
         <div class="measurement-grid">
           <div class="field">
-            <label>Frame Height (mm)</label>
+            <label id="heightLabel">Frame Height (mm)</label>
             <input
               type="number"
               id="height"
@@ -299,7 +299,7 @@
             ×
           </div>
           <div class="field">
-            <label>Frame Width (mm)</label>
+            <label id="widthLabel">Frame Width (mm)</label>
             <input
               type="number"
               id="width"
@@ -307,8 +307,8 @@
               min="0"
             >
           </div>
-          <div class="field">
-            <label>Thickness / Depth (mm)</label>
+          <div class="field" id="thicknessField">
+            <label id="thicknessLabel">Thickness (mm)</label>
             <input type="number" id="thickness" placeholder="10" min="0" step="any">
           </div>
           <div class="field">
@@ -373,13 +373,13 @@
           </div>
           <div class="arrow">→</div>
           <div>
-            <span>Dimensions Used</span>
+            <span id="roundedSizeLabel">Dimensions Used</span>
             <strong id="roundedSize">
               -- × -- mm
             </strong>
           </div>
           <div>
-            <span>Area</span>
+            <span id="areaCardLabel">Area</span>
             <strong id="areaDisplay">
               0.00 Sqft
             </strong>
@@ -391,7 +391,7 @@
             </strong>
           </div>
         </div>
-        <div class="formula">
+        <div class="formula" id="formulaNote">
           ⓘ Sqft: each side is taken from the client size chart (next 3-inch step), converted to feet (inches / 12), then Area = Height ft x Width ft x Qty, Amount = Area x Rate x (1 - Discount%/100). R.ft and Pcs/Job are unchanged.
         </div>
         <div class="add-action">
@@ -422,6 +422,7 @@
                 <th>#</th>
                 <th>CATEGORY / ITEM</th>
                 <th>SIZE (mm)</th>
+                <th>THICKNESS / DEPTH (mm)</th>
                 <th>UNIT</th>
                 <th>QTY</th>
                 <th>AREA / RUN FT / VOLUME</th>

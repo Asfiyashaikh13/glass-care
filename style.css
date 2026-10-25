@@ -588,6 +588,13 @@ select.cell-edit {
   text-align: center;
   padding: 6px 4px;
 }
+.thickness-depth-input {
+  max-width: 80px;
+  text-align: center;
+}
+.thickness-depth-cell {
+  text-align: center;
+}
 .rounded-note {
   font-size: 10.5px;
   color: #17733f;

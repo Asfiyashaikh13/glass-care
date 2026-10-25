@@ -171,4 +171,15 @@ test("calculates Sqft using client size chart 3-inch step", () => {
   assert.equal(c6.mm, 1905);
 });
 
+test("preserves thickness for Sqft and depth for Cubic Ft", () => {
+  const sqftItem = calculations.calculateLine(line({ unit: "Sqft", height: 1800, width: 1200, thickness: 12, rate: 100 }));
+  assert.equal(sqftItem.thickness, 12);
+  assert.equal(sqftItem.measure, 24);
+
+  const cftItem = calculations.calculateLine(line({ unit: "Cubic Ft", height: 609.6, width: 609.6, thickness: 304.8, rate: 200 }));
+  assert.equal(cftItem.thickness, 304.8);
+  assert.equal(cftItem.measure, 4);
+  assert.equal(cftItem.amount, 800);
+});
+
 

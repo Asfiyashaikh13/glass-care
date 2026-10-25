@@ -378,20 +378,20 @@
         dimsBlock = `<div class="item-dims">Size in mm - ${escapeHtml(dims)}${line.quantity > 1 ? ` × ${line.quantity} nos` : ""}</div>`;
       }
 
-      const pcsNote = (line.unit === "Sqft" && line.quantity > 1)
+      const pcsNote = ((line.unit === "Sqft" || line.unit === "Cubic Ft") && line.quantity > 1)
         ? `<div class="item-pcs">Pcs: ${line.quantity}</div>`
         : "";
 
       let measureNote = "";
-      if (line.unit !== "Sqft") {
+      if (line.unit !== "Sqft" && line.unit !== "Cubic Ft") {
         measureNote = `<div class="item-measure">Measure: ${escapeHtml(line.measureLabel)}</div>`;
       }
       if (line.discountPercent > 0) {
         measureNote += `<div class="item-discount-note">Gross: ₹${formatRawNumber(line.grossAmount)} (${line.discountPercent}% off)</div>`;
       }
 
-      const qtyDisplay = line.unit === "Sqft"
-        ? `${formatRawNumber(line.measure, 3)} <span class="unit-label">Sqft</span>`
+      const qtyDisplay = (line.unit === "Sqft" || line.unit === "Cubic Ft")
+        ? `${formatRawNumber(line.measure, 3)} <span class="unit-label">${escapeHtml(line.unit)}</span>`
         : `${formatRawNumber(line.quantity, line.unit === "Pcs" ? 0 : 2)} <span class="unit-label">${escapeHtml(line.unit)}</span>`;
 
       if (isKarnataka) {
@@ -441,12 +441,12 @@
       const dims = dimensionText(line);
       const sqftSizes = getSqftChartSizes(line);
 
-      const pcsNote = (line.unit === "Sqft" && line.quantity > 1)
+      const pcsNote = ((line.unit === "Sqft" || line.unit === "Cubic Ft") && line.quantity > 1)
         ? `<div class="item-pcs">Pcs: ${line.quantity}</div>`
         : "";
 
       let measureNote = "";
-      if (line.unit !== "Sqft") {
+      if (line.unit !== "Sqft" && line.unit !== "Cubic Ft") {
         measureNote = `<div class="item-measure">Measure: ${escapeHtml(line.measureLabel)}</div>`;
       }
       if (line.discountPercent > 0) {
@@ -462,8 +462,8 @@
         sizeContent = `<div class="size-line">Original size: ${origH} × ${origW} mm</div><div class="size-line">Billed size: ${billedH} × ${billedW} mm (${sqftSizes.h.inch} × ${sqftSizes.w.inch} in)</div>`;
       }
 
-      const qtyDisplay = line.unit === "Sqft"
-        ? `${formatRawNumber(line.measure, 3)} <span class="unit-label">Sqft</span>`
+      const qtyDisplay = (line.unit === "Sqft" || line.unit === "Cubic Ft")
+        ? `${formatRawNumber(line.measure, 3)} <span class="unit-label">${escapeHtml(line.unit)}</span>`
         : `${formatRawNumber(line.quantity, line.unit === "Pcs" ? 0 : 2)} <span class="unit-label">${escapeHtml(line.unit)}</span>`;
 
       return `<tr>

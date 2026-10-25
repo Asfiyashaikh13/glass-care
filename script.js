@@ -729,14 +729,38 @@ function getCalculation() {
     width: Number(width.value) || 0,
     thickness: Number(thickness.value) || 0
   });
-  return { ...line, qty: line.quantity, itemRate: line.rate, discount: line.discountPercent, h: line.height, w: line.width, area: line.unit === "Sqft" ? line.measure : 0, runningFeet: line.unit === "R.ft" ? line.measure : 0 };
+  return {
+    ...line,
+    qty: line.quantity,
+    itemRate: line.rate,
+    discount: line.discountPercent,
+    h: line.height,
+    w: line.width,
+    area: line.unit === "Sqft" ? line.measure : 0,
+    runningFeet: line.unit === "R.ft" ? line.measure : 0,
+    volume: line.unit === "Cubic Ft" ? line.measure : 0
+  };
 }
 
 /* UPDATE SCREEN */
 function updateCalculation() {
   const calc = getCalculation();
 
+  const thicknessLabel = document.getElementById("thicknessLabel");
+  const heightLabel = document.getElementById("heightLabel");
+  const widthLabel = document.getElementById("widthLabel");
+  const areaCardLabel = document.getElementById("areaCardLabel");
+  const formulaNote = document.getElementById("formulaNote");
+
   if (calc.unit === "Sqft") {
+    if (thicknessLabel) thicknessLabel.textContent = "Thickness (mm)";
+    if (heightLabel) heightLabel.textContent = "Frame Height (mm)";
+    if (widthLabel) widthLabel.textContent = "Frame Width (mm)";
+    if (thickness) thickness.placeholder = "10";
+    if (areaCardLabel) areaCardLabel.textContent = "Area";
+    if (formulaNote) {
+      formulaNote.textContent = "ⓘ Sqft: each side is taken from the client size chart (next 3-inch step), converted to feet (inches / 12), then Area = Height ft x Width ft x Qty, Amount = Area x Rate x (1 - Discount%/100). R.ft and Pcs/Job are unchanged.";
+    }
     originalSize.textContent = calc.h && calc.w ? `${Math.round(calc.h)} × ${Math.round(calc.w)} mm` : "-- × -- mm";
     if (calc.h && calc.w) {
       const h = calc.chartH || (GlassCareCalculations.chartLookup ? GlassCareCalculations.chartLookup(calc.h) : { inch: Math.round(calc.h / 25.4), mm: calc.h });
@@ -748,16 +772,32 @@ function updateCalculation() {
     areaDisplay.textContent = `${calc.area.toFixed(3)} Sqft`;
     document.getElementById("calculationHint").textContent = "Area calculated from client size chart (next 3-inch step).";
   } else if (calc.unit === "R.ft") {
+    if (thicknessLabel) thicknessLabel.textContent = "Thickness (mm)";
+    if (heightLabel) heightLabel.textContent = "Frame Height (mm)";
+    if (widthLabel) widthLabel.textContent = "Frame Width (mm)";
+    if (areaCardLabel) areaCardLabel.textContent = "Running Feet";
     originalSize.textContent = calc.h && calc.w ? `${Math.round(calc.h)} × ${Math.round(calc.w)} mm` : "-- × -- mm";
     roundedSize.textContent = `${calc.runningFeet.toFixed(2)} R.ft`;
     areaDisplay.textContent = `${calc.runningFeet.toFixed(2)} R.ft`;
     document.getElementById("calculationHint").textContent = "Running feet calculated from the entered perimeter.";
   } else if (calc.unit === "Cubic Ft") {
-    originalSize.textContent = calc.h && calc.w && calc.thickness ? `${calc.h} × ${calc.w} × ${calc.thickness} mm` : "Length × width × thickness required";
-    roundedSize.textContent = calc.measureLabel;
-    areaDisplay.textContent = calc.measureLabel;
-    document.getElementById("calculationHint").textContent = "Cubic feet uses length × width × thickness in mm.";
+    if (thicknessLabel) thicknessLabel.textContent = "Depth (mm)";
+    if (heightLabel) heightLabel.textContent = "Length (mm)";
+    if (widthLabel) widthLabel.textContent = "Width (mm)";
+    if (thickness) thickness.placeholder = "100";
+    if (areaCardLabel) areaCardLabel.textContent = "Cubic Feet";
+    if (formulaNote) {
+      formulaNote.textContent = "ⓘ Cubic Ft: Volume = (Length mm × Width mm × Depth mm ÷ 28,316,847) × Qty. Amount = Volume × Rate × (1 - Discount%/100).";
+    }
+    originalSize.textContent = calc.h && calc.w && calc.thickness ? `${calc.h} × ${calc.w} × ${calc.thickness} mm` : "Length × width × depth required";
+    roundedSize.textContent = calc.h && calc.w && calc.thickness ? `${calc.h} × ${calc.w} × ${calc.thickness} mm` : "-- × -- × -- mm";
+    areaDisplay.textContent = `${calc.measure.toFixed(3)} Cubic Ft`;
+    document.getElementById("calculationHint").textContent = "Cubic feet uses Length × Width × Depth in mm (converted to Cubic Feet).";
   } else {
+    if (thicknessLabel) thicknessLabel.textContent = "Thickness (mm)";
+    if (heightLabel) heightLabel.textContent = "Frame Height (mm)";
+    if (widthLabel) widthLabel.textContent = "Frame Width (mm)";
+    if (areaCardLabel) areaCardLabel.textContent = "Quantity";
     originalSize.textContent = "Not required";
     roundedSize.textContent = "Not applicable";
     areaDisplay.textContent = `${calc.qty} ${calc.unit}`;
@@ -788,7 +828,7 @@ document.getElementById("addItem").addEventListener("click", function () {
     return;
   }
   if (calc.unit === "Cubic Ft" && (!calc.h || !calc.w || !calc.thickness)) {
-    alert("Enter length, width and thickness/depth in mm for a Cubic Ft item.");
+    alert("Please enter Length, Width and Depth in mm for a Cubic Ft item.");
     return;
   }
   if (calc.errors.length) {
@@ -868,7 +908,7 @@ function renderEstimate() {
   if (estimateItems.length === 0) {
     estimateBody.innerHTML = `
       <tr>
-        <td colspan="12" style="text-align:center;padding:48px 20px;color:#64748b;font-size:13.5px;background:#f8fafc;">
+        <td colspan="13" style="text-align:center;padding:48px 20px;color:#64748b;font-size:13.5px;background:#f8fafc;">
           <div style="font-size:26px;margin-bottom:8px;">📋</div>
           <strong style="color:#1e293b;font-size:15px;display:block;margin-bottom:4px;">No items added to current estimate</strong>
           <span style="color:#64748b;">Select a product category and enter dimensions above, then click <b>“+ ADD ITEM TO ESTIMATE”</b>.</span>
@@ -901,10 +941,11 @@ function renderEstimate() {
     catCell.appendChild(itemInput);
     row.appendChild(catCell);
 
-    // Size cell (only meaningful for Sqft / R.ft)
+    // Size cell (Frame Height × Width in mm)
     const sizeCell = document.createElement("td");
     if (item.unit === "Pcs" || item.unit === "Job") {
-      sizeCell.textContent = "-";
+      sizeCell.textContent = "—";
+      sizeCell.style.textAlign = "center";
     } else {
       const sizeRow = document.createElement("div");
       sizeRow.className = "size-row";
@@ -913,6 +954,7 @@ function renderEstimate() {
       hInput.className = "cell-edit";
       hInput.min = "0";
       hInput.value = item.height;
+      hInput.setAttribute("aria-label", item.unit === "Cubic Ft" ? "Length in mm" : "Height in mm");
       hInput.addEventListener("input", () => { item.height = Number(hInput.value) || 0; delete item.measureOverride; clearAmountOverrides(item); recalcItem(item); refreshRowCalcs(row, item); updateTotals(); });
       const xSpan = document.createElement("span");
       xSpan.textContent = "×";
@@ -921,21 +963,11 @@ function renderEstimate() {
       wInput.className = "cell-edit";
       wInput.min = "0";
       wInput.value = item.width;
+      wInput.setAttribute("aria-label", "Width in mm");
       wInput.addEventListener("input", () => { item.width = Number(wInput.value) || 0; delete item.measureOverride; clearAmountOverrides(item); recalcItem(item); refreshRowCalcs(row, item); updateTotals(); });
       sizeRow.appendChild(hInput);
       sizeRow.appendChild(xSpan);
       sizeRow.appendChild(wInput);
-      if (item.unit === "Cubic Ft") {
-        const depthInput = document.createElement("input");
-        depthInput.type = "number";
-        depthInput.className = "cell-edit";
-        depthInput.min = "0";
-        depthInput.value = item.thickness || "";
-        depthInput.setAttribute("aria-label", "Thickness or depth in millimetres");
-        depthInput.addEventListener("input", () => { item.thickness = Number(depthInput.value) || 0; delete item.measureOverride; clearAmountOverrides(item); recalcItem(item); refreshRowCalcs(row, item); updateTotals(); });
-        sizeRow.append("×");
-        sizeRow.appendChild(depthInput);
-      }
       sizeCell.appendChild(sizeRow);
       if (item.unit === "Sqft") {
         const h = item.chartH || (GlassCareCalculations.chartLookup ? GlassCareCalculations.chartLookup(item.height) : null);
@@ -949,6 +981,34 @@ function renderEstimate() {
       }
     }
     row.appendChild(sizeCell);
+
+    // Thickness / Depth cell (New column for Cubic Ft depth & Sqft thickness)
+    const thickDepthCell = document.createElement("td");
+    thickDepthCell.className = "thickness-depth-cell";
+    if (item.unit === "Sqft" || item.unit === "Cubic Ft") {
+      const tdInput = document.createElement("input");
+      tdInput.type = "number";
+      tdInput.className = "cell-edit thickness-depth-input";
+      tdInput.min = "0";
+      tdInput.step = "any";
+      tdInput.value = item.thickness || "";
+      tdInput.placeholder = item.unit === "Cubic Ft" ? "Depth" : "10";
+      tdInput.setAttribute("aria-label", item.unit === "Cubic Ft" ? "Depth in millimetres" : "Thickness in millimetres");
+      tdInput.title = item.unit === "Cubic Ft" ? "Depth in mm" : "Thickness in mm";
+      tdInput.addEventListener("input", () => {
+        item.thickness = Number(tdInput.value) || 0;
+        if (item.unit === "Cubic Ft") delete item.measureOverride;
+        clearAmountOverrides(item);
+        recalcItem(item);
+        refreshRowCalcs(row, item);
+        updateTotals();
+      });
+      thickDepthCell.appendChild(tdInput);
+    } else {
+      thickDepthCell.textContent = "—";
+      thickDepthCell.style.textAlign = "center";
+    }
+    row.appendChild(thickDepthCell);
 
     // Unit cell
     const unitCell = document.createElement("td");
@@ -1161,7 +1221,17 @@ function refreshRowCalcs(row, item) {
   const amountCell = row.querySelector(".amount-cell");
   const taxAmountInput = row.querySelector(".tax-amount-input");
   const amountInput = row.querySelector(".taxable-amount-input");
-  if (document.activeElement !== measureInput) measureInput.value = Number(item.measure || 0);
+  const thickDepthInput = row.querySelector(".thickness-depth-input");
+  if (thickDepthInput && document.activeElement !== thickDepthInput) {
+    thickDepthInput.value = item.thickness || "";
+    thickDepthInput.placeholder = item.unit === "Cubic Ft" ? "Depth" : "10";
+    thickDepthInput.title = item.unit === "Cubic Ft" ? "Depth in mm" : "Thickness in mm";
+  }
+  if (document.activeElement !== measureInput) {
+    measureInput.value = (item.unit === "R.ft")
+      ? Number(item.measure || 0).toFixed(2)
+      : Number(item.measure || 0).toFixed(3);
+  }
   measureInput.title = item.measureLabel;
   measureInput.disabled = ["Pcs", "Job"].includes(item.unit);
   if (document.activeElement !== amountInput) amountInput.value = Number(item.taxableAmount || 0);
