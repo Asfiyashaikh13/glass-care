@@ -545,6 +545,39 @@ function initialize() {
   document.getElementById("estimateDate").value = savedDraft.date || new Date().toISOString().split("T")[0];
   document.getElementById("estimateNumber").textContent = generateEstimateNumber();
 
+  if (savedDraft.currentItem) {
+    const ci = savedDraft.currentItem;
+    if (ci.height && height) height.value = ci.height;
+    if (ci.width && width) width.value = ci.width;
+    if (ci.thickness && thickness) thickness.value = ci.thickness;
+    if (ci.quantity && quantity) quantity.value = ci.quantity;
+    if (ci.rate && rate) rate.value = ci.rate;
+    if (ci.discountPercent && discountPercent) discountPercent.value = ci.discountPercent;
+    if (ci.dimensionUnit && dimensionUnitSelect) dimensionUnitSelect.value = ci.dimensionUnit;
+    if (ci.unit && unitDisplay) unitDisplay.value = ci.unit;
+    if (ci.round3Inch !== undefined && round3InchToggle) round3InchToggle.checked = Boolean(ci.round3Inch);
+    if (ci.category && categorySelect) {
+      categorySelect.value = ci.category;
+      if (categorySelect.value !== ci.category) {
+        categorySelect.value = "__custom__";
+        if (categoryCustom) {
+          categoryCustom.style.display = "block";
+          categoryCustom.value = ci.category;
+        }
+      }
+    }
+    if (ci.itemName && itemNameSelect) {
+      itemNameSelect.value = ci.itemName;
+      if (itemNameSelect.value !== ci.itemName) {
+        itemNameSelect.value = "__custom__";
+        if (itemNameCustom) {
+          itemNameCustom.style.display = "block";
+          itemNameCustom.value = ci.itemName;
+        }
+      }
+    }
+  }
+
   renderEstimate();
   updateCalculation();
   renderRateBook();
@@ -777,6 +810,20 @@ function persistDraft() {
     });
   }
 
+  const currentItem = {
+    category: getSelectedValue(categorySelect, categoryCustom) || "",
+    itemName: getSelectedValue(itemNameSelect, itemNameCustom) || "",
+    height: height?.value || "",
+    width: width?.value || "",
+    thickness: thickness?.value || "",
+    quantity: quantity?.value || "1",
+    dimensionUnit: dimensionUnitSelect?.value || "mm",
+    unit: unitDisplay?.value || "Sq Ft",
+    rate: rate?.value || "0",
+    discountPercent: discountPercent?.value || "0",
+    round3Inch: round3InchToggle ? round3InchToggle.checked : false
+  };
+
   const draft = {
     customerName,
     flatNo,
@@ -785,7 +832,8 @@ function persistDraft() {
     customerGstin: gstinVal,
     paymentMode: document.getElementById("paymentMode")?.value || "Paid",
     date: document.getElementById("estimateDate")?.value || "",
-    state: customerState.value
+    state: customerState.value,
+    currentItem
   };
   try { localStorage.setItem("glassCareDraft", JSON.stringify(draft)); } catch { /* storage may be disabled */ }
 }
@@ -1717,12 +1765,41 @@ function numberToWords(num) {
 /* EVENTS */
 [height, width, thickness, quantity, rate, discountPercent, gstRateInput, unitDisplay, dimensionUnitSelect, round3InchToggle].forEach(el => {
   if (el) {
-    el.addEventListener("input", updateCalculation);
-    el.addEventListener("change", updateCalculation);
+    el.addEventListener("input", () => {
+      updateCalculation();
+      persistDraft();
+    });
+    el.addEventListener("change", () => {
+      updateCalculation();
+      persistDraft();
+    });
   }
 });
 if (customerState) customerState.addEventListener("change", () => { updateTotals(); persistDraft(); });
 document.getElementById("estimateDate")?.addEventListener("change", persistDraft);
+
+/* REAL-TIME CROSS-TAB DATA SYNCHRONIZATION */
+window.addEventListener("storage", (e) => {
+  if (e.key === "glassCareEstimate" && e.newValue) {
+    try {
+      estimateItems = JSON.parse(e.newValue);
+      renderEstimate();
+    } catch {}
+  } else if (e.key === "glassCareDraft" && e.newValue) {
+    try {
+      const d = JSON.parse(e.newValue);
+      ["customerName", "flatNo", "buildingName", "customerPhone", "paymentMode"].forEach(id => {
+        const field = document.getElementById(id);
+        if (field && d[id] !== undefined && field !== document.activeElement) {
+          field.value = d[id];
+        }
+      });
+      if (d.customerGstin && document.getElementById("customerGstin") !== document.activeElement) {
+        document.getElementById("customerGstin").value = d.customerGstin;
+      }
+    } catch {}
+  }
+});
 
 if (globalRound3InchSetting) {
   const savedDefault = localStorage.getItem("glasscare_round3inch_default") === "true";

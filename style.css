@@ -1738,3 +1738,10 @@ body.modal-open {
     font-size: 12px;
   }
 }
+
+html.is-authenticated #authPanel {
+  display: none !important;
+}
+html.is-authenticated #appShell {
+  display: block !important;
+}

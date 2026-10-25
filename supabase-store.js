@@ -14,12 +14,29 @@
   const updatePasswordForm = document.getElementById("updatePasswordForm");
   const newPassword = document.getElementById("newPassword");
   const signOutButton = document.getElementById("signOutButton");
-  const client = window.supabase.createClient(config.url, config.publishableKey, {
-    auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
-  });
+  const client = (window.supabase && typeof window.supabase.createClient === "function")
+    ? window.supabase.createClient(config.url, config.publishableKey, {
+        auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
+      })
+    : null;
 
   let currentUser = null;
   let readyPromise = Promise.resolve();
+
+  // Synchronously restore previous sign-in state to prevent login flicker on Back / reload
+  const cachedUser = (() => {
+    try { return JSON.parse(localStorage.getItem("glassCareCachedUser") || "null"); }
+    catch { return null; }
+  })();
+
+  if (cachedUser && cachedUser.email && !isRecoveryMode()) {
+    currentUser = cachedUser;
+    authPanel.hidden = true;
+    appShell.hidden = false;
+    signOutButton.hidden = false;
+    const signedInAsEl = document.getElementById("signedInAs");
+    if (signedInAsEl) signedInAsEl.textContent = cachedUser.email;
+  }
 
   function setStatus(message, isError = false) {
     authStatus.textContent = message;
@@ -31,9 +48,17 @@
     authPanel.hidden = Boolean(user);
     appShell.hidden = !user;
     signOutButton.hidden = !user;
+    document.documentElement.classList.toggle("is-authenticated", Boolean(user));
     if (user) {
       document.getElementById("signedInAs").textContent = user.email || "Signed in";
       setStatus("");
+      try {
+        localStorage.setItem("glassCareCachedUser", JSON.stringify({ id: user.id, email: user.email }));
+      } catch (e) {}
+    } else {
+      try {
+        localStorage.removeItem("glassCareCachedUser");
+      } catch (e) {}
     }
   }
 
@@ -128,7 +153,7 @@
     const submitButton = authForm.querySelector("button[type=submit]");
     submitButton.disabled = true;
     setStatus("Signing in…");
-    const { error } = await client.auth.signInWithPassword({
+    const { data, error } = await client.auth.signInWithPassword({
       email: document.getElementById("authEmail").value.trim(),
       password: document.getElementById("authPassword").value
     });
@@ -137,22 +162,22 @@
       setStatus(error.message, true);
     } else {
       document.getElementById("authPassword").value = "";
-      try {
-        localStorage.removeItem("glassCareEstimate");
-        localStorage.removeItem("glassCareDraft");
-      } catch (e) {}
-      window.GlassCareEstimate?.reset?.(true);
+      if (data?.user) {
+        activateSession(data.user);
+      }
     }
   });
 
   signOutButton.addEventListener("click", async () => {
     try {
+      localStorage.removeItem("glassCareCachedUser");
       localStorage.removeItem("glassCareEstimate");
       localStorage.removeItem("glassCareDraft");
     } catch (e) {}
     window.GlassCareEstimate?.reset?.(true);
     const { error } = await client.auth.signOut();
     if (error) setStatus(error.message, true);
+    showSignedIn(null);
   });
 
   if (forgotPasswordLink) {
@@ -235,20 +260,22 @@
 
   function activateSession(user) {
     if (!user) {
-      showSignedIn(null);
+      if (!localStorage.getItem("glassCareCachedUser")) {
+        showSignedIn(null);
+      }
       return;
     }
     currentUser = user;
-    authPanel.hidden = false;
-    appShell.hidden = true;
-    signOutButton.hidden = true;
-    document.getElementById("signedInAs").textContent = user.email || "Signed in";
-    setStatus("Loading your shared documents…");
-    readyPromise = loadRemoteData().then(() => {
-      showSignedIn(user);
-    }).catch(error => {
-      showSignedIn(null);
-      setStatus(`Cloud sync failed: ${error.message}. Check that supabase/schema.sql has been run.`, true);
+    showSignedIn(user); // Keep appShell visible! Never hide the app on session restore!
+
+    // Background cloud sync — NEVER log the user out if network or cloud sync fails!
+    readyPromise = loadRemoteData().catch(error => {
+      console.warn("Cloud sync warning (falling back to local cache):", error);
+      const documents = readLocalJson("glassCareDocuments", []);
+      const settings = readLocalJson("glassCareDocumentSettings", {});
+      window.dispatchEvent(new CustomEvent("glasscare:cloud-ready", {
+        detail: { documents, settings, user: currentUser }
+      }));
     });
   }
 
@@ -268,33 +295,47 @@
     setStatus("Enter your new password below.");
   }
 
-  client.auth.onAuthStateChange((event, session) => {
-    if (event === "INITIAL_SESSION") return;
-    if (event === "PASSWORD_RECOVERY" || isRecoveryMode()) {
-      showRecoveryScreen();
-      return;
-    }
-    if (event === "SIGNED_IN") {
-      if (isRecoveryMode()) {
+  if (client?.auth) {
+    client.auth.onAuthStateChange((event, session) => {
+      if (event === "INITIAL_SESSION") return;
+      if (event === "PASSWORD_RECOVERY" || isRecoveryMode()) {
         showRecoveryScreen();
         return;
       }
-      try {
-        localStorage.removeItem("glassCareEstimate");
-        localStorage.removeItem("glassCareDraft");
-      } catch (e) {}
-      window.GlassCareEstimate?.reset?.(true);
+      if (event === "SIGNED_OUT") {
+        showSignedIn(null);
+        return;
+      }
+      // NEVER wipe glassCareEstimate or glassCareDraft on SIGNED_IN!
+      activateSession(session?.user || null);
+    });
+  }
+
+  // Handle mobile Back button and bfcache (back/forward cache)
+  window.addEventListener("pageshow", () => {
+    const cached = (() => {
+      try { return JSON.parse(localStorage.getItem("glassCareCachedUser") || "null"); }
+      catch { return null; }
+    })();
+    if (cached && cached.email && !isRecoveryMode()) {
+      authPanel.hidden = true;
+      appShell.hidden = false;
+      signOutButton.hidden = false;
+      document.documentElement.classList.add("is-authenticated");
+      const signedInAsEl = document.getElementById("signedInAs");
+      if (signedInAsEl) signedInAsEl.textContent = cached.email;
     }
-    activateSession(session?.user || null);
   });
 
   if (isRecoveryMode()) {
     showRecoveryScreen();
-  } else {
+  } else if (client?.auth) {
     client.auth.getSession().then(({ data, error }) => {
       if (error) throw error;
       activateSession(data.session?.user || null);
-    }).catch(error => setStatus(error.message, true));
+    }).catch(error => {
+      console.warn("Session check fallback:", error);
+    });
   }
 
   window.GlassCareStore = {

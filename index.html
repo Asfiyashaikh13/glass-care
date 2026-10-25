@@ -7,7 +7,15 @@
     content="width=device-width, initial-scale=1.0"
   >
   <title>Glass Care Enterprises</title>
-  <link rel="stylesheet" href="style.css?v=glasscare-v6">
+  <script>
+    try {
+      var cached = localStorage.getItem("glassCareCachedUser");
+      if (cached && JSON.parse(cached).email) {
+        document.documentElement.classList.add("is-authenticated");
+      }
+    } catch (e) {}
+  </script>
+  <link rel="stylesheet" href="style.css?v=glasscare-v9">
 </head>
 <body>
 <section class="auth-panel" id="authPanel" aria-labelledby="authHeading">

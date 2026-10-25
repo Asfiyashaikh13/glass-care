@@ -145,6 +145,25 @@ async function run() {
     console.log("Payable amount for 33.90625 CFT at ₹225:", amountCft);
     assert.strictEqual(amountCft, "₹7,628.91", "Amount should be ₹7,628.91");
 
+    // 6. Test session and data persistence across page reload / back navigation
+    await page.evaluate(() => {
+      localStorage.setItem("glassCareCachedUser", JSON.stringify({ id: "user-123", email: "test@example.com" }));
+      localStorage.setItem("glassCareDraft", JSON.stringify({
+        customerName: "Acme Corporation",
+        flatNo: "Suite 404",
+        currentItem: { height: "2290", width: "760", thickness: "460" }
+      }));
+    });
+    await page.reload();
+    await page.waitForTimeout(300);
+
+    const isAuthVisibleAfterReload = await page.locator("#authPanel").isVisible();
+    assert.strictEqual(isAuthVisibleAfterReload, false, "authPanel must stay hidden after reload");
+    const isAppShellVisibleAfterReload = await page.locator("#appShell").isVisible();
+    assert.strictEqual(isAppShellVisibleAfterReload, true, "appShell must stay visible after reload");
+    const restoredCustName = await page.locator("#customerName").inputValue();
+    assert.strictEqual(restoredCustName, "Acme Corporation", "Customer name draft must be preserved");
+
     console.log("All Playwright browser smoke test assertions PASSED!");
   } finally {
     if (browser) await browser.close();
