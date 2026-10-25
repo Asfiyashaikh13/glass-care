@@ -1173,7 +1173,35 @@ function resetItemForm() {
   editRateBtn.style.borderColor = "#cbd5e1";
   saveRateBtn.style.display = "none";
   rateSourceTag.textContent = "";
+  unitDisplay.value = "Sq Ft";
+  if (basisOverriddenTag) basisOverriddenTag.style.display = "none";
+  if (confirmSanityCheckbox) confirmSanityCheckbox.checked = false;
+  if (sanityWarningContainer) sanityWarningContainer.style.display = "none";
   updateCalculation();
+  persistDraft();
+}
+
+const clearItemBtn = document.getElementById("clearItemBtn");
+if (clearItemBtn) {
+  clearItemBtn.addEventListener("click", () => {
+    resetItemForm();
+  });
+}
+
+const clearCustomerBtn = document.getElementById("clearCustomerBtn");
+if (clearCustomerBtn) {
+  clearCustomerBtn.addEventListener("click", () => {
+    ["customerName", "flatNo", "buildingName", "customerPhone", "customerGstin"].forEach(id => {
+      const field = document.getElementById(id);
+      if (field) field.value = "";
+    });
+    const statusEl = document.getElementById("gstinStatus");
+    if (statusEl) {
+      statusEl.textContent = "";
+      statusEl.className = "gstin-status";
+    }
+    persistDraft();
+  });
 }
 
 /* RECALCULATE A ROW FROM ITS FIELDS */

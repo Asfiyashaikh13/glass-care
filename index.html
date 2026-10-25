@@ -113,7 +113,10 @@
   </section>
   <!-- CUSTOMER -->
   <section class="customer-card">
-    <h2>Customer & Project Details</h2>
+    <div class="customer-card-header">
+      <h2>Customer &amp; Project Details</h2>
+      <button type="button" id="clearCustomerBtn" class="btn-clear-customer" title="Clear customer fields">✕ Clear Details</button>
+    </div>
     <div class="customer-grid">
       <input
         id="customerName"
@@ -445,9 +448,12 @@
           <span id="calculationHint" role="status" aria-live="polite">
             Fill in the item details above.
           </span>
-          <button id="addItem">
-            + ADD ITEM TO ESTIMATE
-          </button>
+          <div class="add-action-buttons">
+            <button type="button" id="clearItemBtn" class="btn-clear-item" title="Clear entered item fields">✕ Clear</button>
+            <button id="addItem" class="btn-add-item">
+              + ADD ITEM TO ESTIMATE
+            </button>
+          </div>
         </div>
       </section>
       <!-- TABLE -->
