@@ -1475,127 +1475,117 @@ async function handleGstinInput(rawVal, options = {}) {
   const buildEl = document.getElementById("buildingName");
   const phoneEl = document.getElementById("customerPhone");
 
-  const hasApiConfig = !!((localStorage.getItem("glassCareGstinBackendUrl") || "").trim() || (localStorage.getItem("glassCareGstinApiKey") || "").trim());
   const directory = getCustomerDirectory();
   const verifiedRecord = directory[clean];
 
-  if (!hasApiConfig) {
-    if (verifiedRecord) {
-      if (nameEl) nameEl.value = verifiedRecord.tradeName || verifiedRecord.name;
-      if (flatEl && verifiedRecord.flatNo) flatEl.value = verifiedRecord.flatNo;
-      if (buildEl && verifiedRecord.buildingName) buildEl.value = verifiedRecord.buildingName;
-      if (phoneEl && verifiedRecord.customerPhone) phoneEl.value = verifiedRecord.customerPhone;
-      if (verifiedRecord.state && customerState) {
-        customerState.value = verifiedRecord.state;
-        updateTotals();
-      }
-      persistDraft();
-      showGstinStatus(`GSTIN verified: ${verifiedRecord.tradeName || verifiedRecord.name} • Status: Active (${verifiedRecord.state || stateName})`, "success");
-      return;
+  // 1. Instant auto-fill for all verified directory records
+  if (verifiedRecord) {
+    if (nameEl) nameEl.value = verifiedRecord.tradeName || verifiedRecord.name;
+    if (flatEl && verifiedRecord.flatNo) flatEl.value = verifiedRecord.flatNo;
+    if (buildEl && verifiedRecord.buildingName) buildEl.value = verifiedRecord.buildingName;
+    if (phoneEl && verifiedRecord.customerPhone) phoneEl.value = verifiedRecord.customerPhone;
+    if (verifiedRecord.state && customerState) {
+      customerState.value = verifiedRecord.state;
+      updateTotals();
     }
-
-    // Check historical documents
-    let historicalFound = null;
-    try {
-      const docList = JSON.parse(localStorage.getItem("glassCareDocuments") || "[]");
-      const matchedDoc = docList.find(item => item.customer && item.customer.gstin && item.customer.gstin.toUpperCase() === clean);
-      if (matchedDoc) {
-        historicalFound = {
-          name: matchedDoc.customer.name,
-          flatNo: matchedDoc.customer.location,
-          buildingName: matchedDoc.customer.project,
-          customerPhone: matchedDoc.customer.phone,
-          state: matchedDoc.state
-        };
-      }
-    } catch (e) {}
-
-    if (historicalFound) {
-      if (nameEl && historicalFound.name) nameEl.value = historicalFound.name;
-      if (flatEl && historicalFound.flatNo) flatEl.value = historicalFound.flatNo;
-      if (buildEl && historicalFound.buildingName) buildEl.value = historicalFound.buildingName;
-      if (phoneEl && historicalFound.customerPhone) phoneEl.value = historicalFound.customerPhone;
-      if (historicalFound.state && customerState) {
-        customerState.value = historicalFound.state;
-        updateTotals();
-      }
-      persistDraft();
-      showGstinStatus(`Loaded saved details for ${historicalFound.name} from previous documents.`, "success");
-    } else {
-      showGstinStatus(`GSTIN checksum & state (${stateName}) verified. Enter customer details, or configure a GST API key in Document Settings for live registry lookup.`, "info", false);
-    }
+    persistDraft();
+    showGstinStatus(`GSTIN verified: ${verifiedRecord.tradeName || verifiedRecord.name} • Status: Active (${verifiedRecord.state || stateName})`, "success");
     return;
   }
 
-  if (fetchBtn) fetchBtn.disabled = true;
-  showGstinStatus(`Fetching GST details for ${clean}...`, "loading", false);
-
+  // 2. Instant auto-fill from previously saved invoices/estimates
+  let historicalFound = null;
   try {
-    const lookup = await fetchOnlineGstinDetails(clean, { timeoutMs: 8000 });
-
-    if (lookup.success && lookup.data) {
-      const d = lookup.data;
-      if (nameEl) nameEl.value = d.tradeName || d.legalName;
-      if (flatEl && d.flatNo) flatEl.value = d.flatNo;
-      if (buildEl && d.buildingName) buildEl.value = d.buildingName;
-      if (d.state && customerState) {
-        customerState.value = d.state;
-        updateTotals();
-      }
-
-      saveCustomerToDirectory(clean, {
-        name: d.tradeName || d.legalName,
-        legalName: d.legalName,
-        tradeName: d.tradeName,
-        flatNo: d.flatNo,
-        buildingName: d.buildingName,
-        state: d.state || stateName,
-        status: d.status,
-        constitution: d.constitution,
-        taxpayerType: d.taxpayerType
-      });
-      persistDraft();
-
-      if (d.status === "Cancelled") {
-        showGstinStatus(`GST registration cancelled: ${d.legalName} (Cancelled: ${d.cancellationDate || "Yes"}).`, "warning");
-      } else if (d.status === "Suspended") {
-        showGstinStatus(`GST registration suspended: ${d.legalName}.`, "warning");
-      } else {
-        showGstinStatus(`GSTIN verified successfully: ${d.legalName} • Status: Active (${d.constitution || "Regular"})`, "success");
-      }
-      return;
+    const docList = JSON.parse(localStorage.getItem("glassCareDocuments") || "[]");
+    const matchedDoc = docList.find(item => item.customer && item.customer.gstin && item.customer.gstin.toUpperCase() === clean);
+    if (matchedDoc) {
+      historicalFound = {
+        name: matchedDoc.customer.name,
+        flatNo: matchedDoc.customer.location,
+        buildingName: matchedDoc.customer.project,
+        customerPhone: matchedDoc.customer.phone,
+        state: matchedDoc.state
+      };
     }
+  } catch (e) {}
 
-    // If API returned failure but we have a verified entry in directory, fall back to it
-    if (verifiedRecord) {
-      if (nameEl) nameEl.value = verifiedRecord.tradeName || verifiedRecord.name;
-      if (flatEl && verifiedRecord.flatNo) flatEl.value = verifiedRecord.flatNo;
-      if (buildEl && verifiedRecord.buildingName) buildEl.value = verifiedRecord.buildingName;
-      if (phoneEl && verifiedRecord.customerPhone) phoneEl.value = verifiedRecord.customerPhone;
-      if (verifiedRecord.state && customerState) {
-        customerState.value = verifiedRecord.state;
-        updateTotals();
-      }
-      persistDraft();
-      showGstinStatus(`GSTIN verified: ${verifiedRecord.tradeName || verifiedRecord.name} • Status: Active (${verifiedRecord.state || stateName})`, "success");
-      return;
+  if (historicalFound) {
+    if (nameEl && historicalFound.name) nameEl.value = historicalFound.name;
+    if (flatEl && historicalFound.flatNo) flatEl.value = historicalFound.flatNo;
+    if (buildEl && historicalFound.buildingName) buildEl.value = historicalFound.buildingName;
+    if (phoneEl && historicalFound.customerPhone) phoneEl.value = historicalFound.customerPhone;
+    if (historicalFound.state && customerState) {
+      customerState.value = historicalFound.state;
+      updateTotals();
     }
-
-    // Handle lookup failure
-    if (lookup.errorType === "NOT_FOUND") {
-      showGstinStatus("GSTIN not found in the official GST registration database.", "error");
-    } else if (lookup.errorType === "AUTH_FAILURE") {
-      showGstinStatus("API authentication failed. Please check your GST API credentials in Document Settings.", "error");
-    } else if (lookup.errorType === "RATE_LIMIT") {
-      showGstinStatus("API rate limit reached. Please wait a moment before trying again.", "warning");
-    } else if (lookup.errorType === "TIMEOUT") {
-      showGstinStatus("API temporarily unavailable. Request timed out. Please try again or enter details manually.", "warning");
-    } else {
-      showGstinStatus(`Unable to fetch details: ${lookup.message || "Please try again."}`, "warning");
-    }
-  } finally {
-    if (fetchBtn) fetchBtn.disabled = false;
+    persistDraft();
+    showGstinStatus(`Loaded saved details for ${historicalFound.name} from previous documents.`, "success");
+    return;
   }
+
+  // 3. If an API key or backend proxy is configured, query live API
+  const hasApiConfig = !!((localStorage.getItem("glassCareGstinBackendUrl") || "").trim() || (localStorage.getItem("glassCareGstinApiKey") || "").trim());
+
+  if (hasApiConfig) {
+    if (fetchBtn) fetchBtn.disabled = true;
+    showGstinStatus(`Fetching GST details for ${clean}...`, "loading", false);
+
+    try {
+      const lookup = await fetchOnlineGstinDetails(clean, { timeoutMs: 8000 });
+
+      if (lookup.success && lookup.data) {
+        const d = lookup.data;
+        if (nameEl) nameEl.value = d.tradeName || d.legalName;
+        if (flatEl && d.flatNo) flatEl.value = d.flatNo;
+        if (buildEl && d.buildingName) buildEl.value = d.buildingName;
+        if (d.state && customerState) {
+          customerState.value = d.state;
+          updateTotals();
+        }
+
+        saveCustomerToDirectory(clean, {
+          name: d.tradeName || d.legalName,
+          legalName: d.legalName,
+          tradeName: d.tradeName,
+          flatNo: d.flatNo,
+          buildingName: d.buildingName,
+          state: d.state || stateName,
+          status: d.status,
+          constitution: d.constitution,
+          taxpayerType: d.taxpayerType
+        });
+        persistDraft();
+
+        if (d.status === "Cancelled") {
+          showGstinStatus(`GST registration cancelled: ${d.legalName} (Cancelled: ${d.cancellationDate || "Yes"}).`, "warning");
+        } else if (d.status === "Suspended") {
+          showGstinStatus(`GST registration suspended: ${d.legalName}.`, "warning");
+        } else {
+          showGstinStatus(`GSTIN verified successfully: ${d.legalName} • Status: Active (${d.constitution || "Regular"})`, "success");
+        }
+        return;
+      }
+
+      // Handle lookup failure
+      if (lookup.errorType === "NOT_FOUND") {
+        showGstinStatus("GSTIN not found in the official GST registration database.", "error");
+      } else if (lookup.errorType === "AUTH_FAILURE") {
+        showGstinStatus("API authentication failed. Please check your GST API credentials in Document Settings.", "error");
+      } else if (lookup.errorType === "RATE_LIMIT") {
+        showGstinStatus("API rate limit reached. Please wait a moment before trying again.", "warning");
+      } else if (lookup.errorType === "TIMEOUT") {
+        showGstinStatus("API temporarily unavailable. Request timed out. Please try again or enter details manually.", "warning");
+      } else {
+        showGstinStatus(`Unable to fetch details: ${lookup.message || "Please try again."}`, "warning");
+      }
+      return;
+    } finally {
+      if (fetchBtn) fetchBtn.disabled = false;
+    }
+  }
+
+  // 4. If new uncataloged GSTIN and no live API configured
+  showGstinStatus(`Valid ${stateName} GSTIN verified. Enter customer name & location to save to your directory.`, "info", false);
 }
 
 function persistDraft() {
