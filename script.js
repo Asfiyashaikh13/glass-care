@@ -609,7 +609,7 @@ function initialize() {
   const syncCustomerDirectoryOnEdit = () => {
     const gstinEl = document.getElementById("customerGstin");
     const rawGstin = (gstinEl?.value || "").toUpperCase().replace(/[^0-9A-Z]/g, "").slice(0, 15);
-    if (rawGstin.length === 15) {
+    if (rawGstin.length === 15 && !DEFAULT_CUSTOMER_DIRECTORY[rawGstin]) {
       saveCustomerToDirectory(rawGstin, {
         name: document.getElementById("customerName")?.value.trim() || "",
         flatNo: document.getElementById("flatNo")?.value.trim() || "",
@@ -655,13 +655,23 @@ function initialize() {
 
   if (fetchGstinBtn) {
     fetchGstinBtn.addEventListener("click", () => {
-      const val = (gstinField?.value || "").trim();
+      const val = (gstinField?.value || "").trim().toUpperCase();
       if (!val) {
         showGstinStatus("Please enter a 15-character Customer GSTIN to fetch details.", "warning");
         gstinField?.focus();
         return;
       }
-      handleGstinInput(val);
+      if (DEFAULT_CUSTOMER_DIRECTORY[val]) {
+        try {
+          const raw = localStorage.getItem(GSTIN_DIRECTORY_KEY);
+          if (raw) {
+            const dir = JSON.parse(raw);
+            delete dir[val];
+            localStorage.setItem(GSTIN_DIRECTORY_KEY, JSON.stringify(dir));
+          }
+        } catch (e) {}
+      }
+      handleGstinInput(val, { forceFetch: true });
     });
   }
   if (savedDraft.state && states.includes(savedDraft.state)) customerState.value = savedDraft.state;
@@ -711,6 +721,13 @@ function initialize() {
 const GSTIN_DIRECTORY_KEY = "glassCareCustomerDirectory";
 
 const DEFAULT_CUSTOMER_DIRECTORY = {
+  "29BNYPN6916L1ZU": {
+    name: "Glass Care Enterprises",
+    flatNo: "No. 122/1 Ground Floor Kogilu Layout",
+    buildingName: "Kogilu Main Road, Bellahalli Cross, Bengaluru",
+    customerPhone: "9945988852",
+    state: "Karnataka"
+  },
   "29AACCB6672L1Z6": {
     name: "BSE Limited",
     flatNo: "3rd Cross, Shree Raghavendra Complex, No. 184",
@@ -885,7 +902,7 @@ function getCustomerDirectory() {
   try {
     const raw = localStorage.getItem(GSTIN_DIRECTORY_KEY);
     const userDir = raw ? JSON.parse(raw) : {};
-    return { ...DEFAULT_CUSTOMER_DIRECTORY, ...userDir };
+    return { ...userDir, ...DEFAULT_CUSTOMER_DIRECTORY };
   } catch (e) {
     return { ...DEFAULT_CUSTOMER_DIRECTORY };
   }
@@ -1645,14 +1662,26 @@ if (clearItemBtn) {
 const clearCustomerBtn = document.getElementById("clearCustomerBtn");
 if (clearCustomerBtn) {
   clearCustomerBtn.addEventListener("click", () => {
+    const prevGstin = (document.getElementById("customerGstin")?.value || "").trim().toUpperCase();
     ["customerName", "flatNo", "buildingName", "customerPhone", "customerGstin"].forEach(id => {
       const field = document.getElementById(id);
       if (field) field.value = "";
     });
+    if (prevGstin) {
+      try {
+        const raw = localStorage.getItem(GSTIN_DIRECTORY_KEY);
+        if (raw) {
+          const dir = JSON.parse(raw);
+          delete dir[prevGstin];
+          localStorage.setItem(GSTIN_DIRECTORY_KEY, JSON.stringify(dir));
+        }
+      } catch (e) {}
+    }
     const statusEl = document.getElementById("gstinStatus");
     if (statusEl) {
       statusEl.textContent = "";
       statusEl.className = "gstin-status";
+      statusEl.style.display = "none";
     }
     persistDraft();
   });
