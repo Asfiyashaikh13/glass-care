@@ -763,6 +763,87 @@ function initialize() {
 const GSTIN_DIRECTORY_KEY = "glassCareCustomerDirectory";
 
 const DEFAULT_CUSTOMER_DIRECTORY = {
+  "06AACCG0527D1Z8": {
+    name: "Google India Private Limited",
+    legalName: "Google India Private Limited",
+    tradeName: "Google India Pvt Ltd",
+    flatNo: "Tower-B, Unitech Signature Tower",
+    buildingName: "Sector-15, Part-I, Silokhera, Gurugram, PIN: 122002",
+    customerPhone: "0124-4512900",
+    state: "Haryana"
+  },
+  "07AABCB2115P1ZR": {
+    name: "Business Standard Private Limited",
+    legalName: "Business Standard Private Limited",
+    tradeName: "Business Standard",
+    flatNo: "Nehru House, 4 Bahadur Shah Zafar Marg",
+    buildingName: "ITO, New Delhi, PIN: 110002",
+    customerPhone: "011-23720141",
+    state: "Delhi"
+  },
+  "27AABCB2115P1ZP": {
+    name: "Business Standard Private Limited",
+    legalName: "Business Standard Private Limited",
+    tradeName: "Business Standard",
+    flatNo: "Building No. 4, Ground Floor, Trade World",
+    buildingName: "Kamala Mills, Lower Parel, Mumbai, PIN: 400013",
+    customerPhone: "022-24978470",
+    state: "Maharashtra"
+  },
+  "24AABCB2115P1ZV": {
+    name: "Business Standard Private Limited",
+    legalName: "Business Standard Private Limited",
+    tradeName: "Business Standard",
+    flatNo: "3rd Floor, Heritage Horizon",
+    buildingName: "C.G. Road, Navrangpura, Ahmedabad, PIN: 380009",
+    customerPhone: "079-26420556",
+    state: "Gujarat"
+  },
+  "33AABCB2115P1ZW": {
+    name: "Business Standard Private Limited",
+    legalName: "Business Standard Private Limited",
+    tradeName: "Business Standard",
+    flatNo: "Ground Floor, Vaman Centre",
+    buildingName: "No. 104, Bazullah Road, T. Nagar, Chennai, PIN: 600017",
+    customerPhone: "044-28153051",
+    state: "Tamil Nadu"
+  },
+  "27AAPFU0939F1ZV": {
+    name: "Sample Tech Solutions Private Limited",
+    legalName: "Sample Tech Solutions Private Limited",
+    tradeName: "Sample Tech Solutions",
+    flatNo: "Unit 502, Platina Tower",
+    buildingName: "Bandra Kurla Complex, Bandra East, Mumbai, PIN: 400051",
+    customerPhone: "022-67890123",
+    state: "Maharashtra"
+  },
+  "24ABKCS2033B1ZV": {
+    name: "Gujarat Enterprise Limited",
+    legalName: "Gujarat Enterprise Limited",
+    tradeName: "Gujarat Enterprise",
+    flatNo: "4th Floor, Safal Profitaire",
+    buildingName: "Corporate Road, Prahlad Nagar, Ahmedabad, PIN: 380015",
+    customerPhone: "079-40001234",
+    state: "Gujarat"
+  },
+  "09AAACH7409R1ZZ": {
+    name: "Hindustan Copper Limited",
+    legalName: "Hindustan Copper Limited",
+    tradeName: "Hindustan Copper",
+    flatNo: "Regional Sales Office, Indian Oil Bhavan",
+    buildingName: "Vibhuti Khand, Gomti Nagar, Lucknow, PIN: 226010",
+    customerPhone: "0522-2720000",
+    state: "Uttar Pradesh"
+  },
+  "29AAACH7409R1ZX": {
+    name: "Hindustan Copper Limited",
+    legalName: "Hindustan Copper Limited",
+    tradeName: "Hindustan Copper",
+    flatNo: "Branch Office, Unity Building",
+    buildingName: "J.C. Road, Bangalore, PIN: 560002",
+    customerPhone: "080-22223456",
+    state: "Karnataka"
+  },
   "29AABCA1234F1Z6": {
     name: "ABC Enterprises Private Limited",
     legalName: "ABC Enterprises Private Limited",

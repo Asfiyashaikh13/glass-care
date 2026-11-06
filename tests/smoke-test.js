@@ -352,6 +352,21 @@ async function run() {
     assert.strictEqual(fetchedState, "Karnataka");
     console.log("GSTIN auto-fetch verified for sample 29AABCA1234F1Z6!");
 
+    // Test Google India Gurugram (06AACCG0527D1Z8)
+    await page.locator("#customerGstin").fill("06AACCG0527D1Z8");
+    await page.locator("#fetchGstinBtn").click();
+    await page.waitForTimeout(300);
+
+    fetchedName = await page.locator("#customerName").inputValue();
+    fetchedFlat = await page.locator("#flatNo").inputValue();
+    fetchedBuilding = await page.locator("#buildingName").inputValue();
+    fetchedState = await page.locator("#customerState").inputValue();
+    console.log("Auto-fetched for 06AACCG0527D1Z8 (Google India Gurugram):", { fetchedName, fetchedFlat, fetchedBuilding, fetchedState });
+    assert.ok(fetchedName.includes("Google India"), "Customer name should contain Google India");
+    assert.ok(fetchedBuilding.includes("Gurugram") || fetchedBuilding.includes("Unitech") || fetchedFlat.includes("Unitech"), "Should contain Unitech or Gurugram");
+    assert.strictEqual(fetchedState, "Haryana");
+    console.log("GSTIN auto-fetch verified for 06AACCG0527D1Z8 (Haryana)!");
+
     console.log("All Playwright browser smoke test assertions PASSED!");
   } finally {
     if (browser) await browser.close();
