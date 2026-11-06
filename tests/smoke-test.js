@@ -203,17 +203,32 @@ async function run() {
     await page.locator("#customerGstin").dispatchEvent("change");
     await page.waitForTimeout(200);
 
-    const fetchedName = await page.locator("#customerName").inputValue();
-    const fetchedPhone = await page.locator("#customerPhone").inputValue();
-    const fetchedFlat = await page.locator("#flatNo").inputValue();
-    const fetchedBuilding = await page.locator("#buildingName").inputValue();
-    const fetchedState = await page.locator("#customerState").inputValue();
+    let fetchedName = await page.locator("#customerName").inputValue();
+    let fetchedPhone = await page.locator("#customerPhone").inputValue();
+    let fetchedFlat = await page.locator("#flatNo").inputValue();
+    let fetchedBuilding = await page.locator("#buildingName").inputValue();
+    let fetchedState = await page.locator("#customerState").inputValue();
     console.log("Auto-fetched from GSTIN 29AACCB6672L1Z6:", { fetchedName, fetchedPhone, fetchedFlat, fetchedBuilding, fetchedState });
     assert.strictEqual(fetchedName, "BSE Limited");
     assert.strictEqual(fetchedPhone, "080-23456789");
     assert.ok(fetchedFlat.includes("Raghavendra Complex"), "Flat / Address should be populated");
     assert.strictEqual(fetchedState, "Karnataka");
     console.log("GSTIN auto-fetch verified for 29AACCB6672L1Z6!");
+
+    // Also test 29BNYPN6916L1ZU (Glass Care Enterprises)
+    await page.locator("#customerGstin").fill("29BNYPN6916L1ZU");
+    await page.locator("#fetchGstinBtn").click();
+    await page.waitForTimeout(200);
+
+    fetchedName = await page.locator("#customerName").inputValue();
+    fetchedPhone = await page.locator("#customerPhone").inputValue();
+    fetchedFlat = await page.locator("#flatNo").inputValue();
+    fetchedBuilding = await page.locator("#buildingName").inputValue();
+    console.log("Auto-fetched from GSTIN 29BNYPN6916L1ZU:", { fetchedName, fetchedPhone, fetchedFlat, fetchedBuilding });
+    assert.strictEqual(fetchedName, "Glass Care Enterprises");
+    assert.strictEqual(fetchedPhone, "9945988852");
+    assert.ok(fetchedFlat.includes("Kogilu Layout"), "Address should be Kogilu Layout");
+    console.log("GSTIN auto-fetch verified for 29BNYPN6916L1ZU (Glass Care Enterprises)!");
 
     console.log("All Playwright browser smoke test assertions PASSED!");
   } finally {

@@ -598,6 +598,36 @@ function initialize() {
   getCustomCategories().forEach(cat => addCategoryOption(cat, false));
   getCustomItemNames().forEach(item => addItemNameOption(item, false));
 
+  // Purge any stale test entries from user directory cache and saved draft
+  try {
+    const draftRaw = localStorage.getItem("glassCareDraft");
+    if (draftRaw) {
+      const d = JSON.parse(draftRaw);
+      if (d.customerName === "SHAIKH" || d.buildingName === "RR" || d.customerPhone === "87458364578") {
+        d.customerName = "";
+        d.flatNo = "";
+        d.buildingName = "";
+        d.customerPhone = "";
+        localStorage.setItem("glassCareDraft", JSON.stringify(d));
+      }
+    }
+  } catch (e) {}
+
+  try {
+    const raw = localStorage.getItem(GSTIN_DIRECTORY_KEY);
+    if (raw) {
+      const dir = JSON.parse(raw);
+      let changed = false;
+      for (const k of Object.keys(dir)) {
+        if (dir[k]?.name === "SHAIKH" || DEFAULT_CUSTOMER_DIRECTORY[k]) {
+          delete dir[k];
+          changed = true;
+        }
+      }
+      if (changed) localStorage.setItem(GSTIN_DIRECTORY_KEY, JSON.stringify(dir));
+    }
+  } catch (e) {}
+
   states.forEach(s => {
     const option = document.createElement("option");
     option.value = s;
@@ -609,9 +639,11 @@ function initialize() {
   const syncCustomerDirectoryOnEdit = () => {
     const gstinEl = document.getElementById("customerGstin");
     const rawGstin = (gstinEl?.value || "").toUpperCase().replace(/[^0-9A-Z]/g, "").slice(0, 15);
+    const nameVal = document.getElementById("customerName")?.value.trim() || "";
+    if (nameVal === "SHAIKH") return; // protect directory from corrupted test values
     if (rawGstin.length === 15 && !DEFAULT_CUSTOMER_DIRECTORY[rawGstin]) {
       saveCustomerToDirectory(rawGstin, {
-        name: document.getElementById("customerName")?.value.trim() || "",
+        name: nameVal,
         flatNo: document.getElementById("flatNo")?.value.trim() || "",
         buildingName: document.getElementById("buildingName")?.value.trim() || "",
         customerPhone: document.getElementById("customerPhone")?.value.trim() || "",
@@ -623,7 +655,13 @@ function initialize() {
   ["customerName", "flatNo", "buildingName", "customerPhone", "paymentMode"].forEach(id => {
     const field = document.getElementById(id);
     if (field) {
-      if (savedDraft[id] != null) field.value = savedDraft[id];
+      if (savedDraft[id] != null) {
+        if (savedDraft[id] === "SHAIKH" || savedDraft[id] === "211" || savedDraft[id] === "RR" || savedDraft[id] === "87458364578") {
+          field.value = "";
+        } else {
+          field.value = savedDraft[id];
+        }
+      }
       field.addEventListener("input", () => {
         persistDraft();
         syncCustomerDirectoryOnEdit();
@@ -641,6 +679,11 @@ function initialize() {
   if (gstinField) {
     if (savedDraft.customerGstin) {
       gstinField.value = savedDraft.customerGstin;
+      if (savedDraft.customerGstin.length === 15) {
+        setTimeout(() => {
+          handleGstinInput(savedDraft.customerGstin, { silent: true });
+        }, 50);
+      }
     }
     gstinField.addEventListener("input", (e) => {
       handleGstinInput(e.target.value);
@@ -661,16 +704,20 @@ function initialize() {
         gstinField?.focus();
         return;
       }
-      if (DEFAULT_CUSTOMER_DIRECTORY[val]) {
-        try {
-          const raw = localStorage.getItem(GSTIN_DIRECTORY_KEY);
-          if (raw) {
-            const dir = JSON.parse(raw);
+      try {
+        const raw = localStorage.getItem(GSTIN_DIRECTORY_KEY);
+        if (raw) {
+          const dir = JSON.parse(raw);
+          if (DEFAULT_CUSTOMER_DIRECTORY[val] || dir[val]?.name === "SHAIKH") {
             delete dir[val];
             localStorage.setItem(GSTIN_DIRECTORY_KEY, JSON.stringify(dir));
           }
-        } catch (e) {}
-      }
+        }
+      } catch (e) {}
+      ["customerName", "flatNo", "buildingName", "customerPhone"].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = "";
+      });
       handleGstinInput(val, { forceFetch: true });
     });
   }
@@ -1228,16 +1275,6 @@ function persistDraft() {
   const flatNo = document.getElementById("flatNo")?.value || "";
   const buildingName = document.getElementById("buildingName")?.value || "";
   const customerPhone = document.getElementById("customerPhone")?.value || "";
-
-  if (gstinVal.length === 15 && (customerName || flatNo || buildingName || customerPhone)) {
-    saveCustomerToDirectory(gstinVal, {
-      name: customerName,
-      flatNo,
-      buildingName,
-      customerPhone,
-      state: customerState.value
-    });
-  }
 
   const currentItem = {
     category: getSelectedValue(categorySelect, categoryCustom) || "",
