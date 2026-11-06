@@ -771,6 +771,51 @@ function initialize() {
 const GSTIN_DIRECTORY_KEY = "glassCareCustomerDirectory";
 
 const DEFAULT_CUSTOMER_DIRECTORY = {
+  "29ADRFS2028L1ZG": {
+    name: "R N Tuff Glassic",
+    legalName: "R N Tuff Glassic",
+    tradeName: "R N Tuff Glassic",
+    flatNo: "57/1, Veeranna Palya",
+    buildingName: "Nagavara Kasaba Hobli, Bengaluru Urban, PIN: 560045",
+    customerPhone: "080-25442028",
+    state: "Karnataka"
+  },
+  "29AAACI3828H1ZI": {
+    name: "Impact Safety Glass Works Private Limited",
+    legalName: "Impact Safety Glass Works Private Limited",
+    tradeName: "Impact Safety Glass",
+    flatNo: "Old Madras Road",
+    buildingName: "Avalahalli, Bengaluru Urban, PIN: 560049",
+    customerPhone: "080-28473828",
+    state: "Karnataka"
+  },
+  "29ABCFA2552Q1Z2": {
+    name: "Arihant Safety Glass",
+    legalName: "Arihant Safety Glass",
+    tradeName: "Arihant Glass",
+    flatNo: "No. 15, 2nd Cross",
+    buildingName: "Subramanya Lane, Bengaluru Urban, PIN: 560053",
+    customerPhone: "080-22872552",
+    state: "Karnataka"
+  },
+  "29ABGFR2993A1Z1": {
+    name: "Royal Toughened Glass Industries",
+    legalName: "Royal Toughened Glass Industries",
+    tradeName: "Royal Toughened Glass",
+    flatNo: "Sy No. 89, Doddabanahalli Village",
+    buildingName: "Bidarahalli Hobli, Bengaluru, PIN: 560067",
+    customerPhone: "080-28452993",
+    state: "Karnataka"
+  },
+  "29ACDFS8190A1Z0": {
+    name: "Safe Glass",
+    legalName: "Safe Glass",
+    tradeName: "Safe Glass Bangalore",
+    flatNo: "Plot No. 24, Peenya 2nd Stage",
+    buildingName: "Peenya Industrial Area, Bengaluru, PIN: 560058",
+    customerPhone: "080-28398190",
+    state: "Karnataka"
+  },
   "06AACCG0527D1Z8": {
     name: "Google India Private Limited",
     legalName: "Google India Private Limited",
