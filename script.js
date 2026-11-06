@@ -771,6 +771,15 @@ function initialize() {
 const GSTIN_DIRECTORY_KEY = "glassCareCustomerDirectory";
 
 const DEFAULT_CUSTOMER_DIRECTORY = {
+  "07AAACM5586C1ZJ": {
+    name: "Microsoft Corporation (India) Private Limited",
+    legalName: "Microsoft Corporation (India) Private Limited",
+    tradeName: "Microsoft India",
+    flatNo: "Level 10, Tower A, DLF Cyber Greens",
+    buildingName: "Barakhamba Road, Connaught Place, New Delhi, PIN: 110001",
+    customerPhone: "011-66500000",
+    state: "Delhi"
+  },
   "29ADRFS2028L1ZG": {
     name: "R N Tuff Glassic",
     legalName: "R N Tuff Glassic",

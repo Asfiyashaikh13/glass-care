@@ -382,6 +382,21 @@ async function run() {
     assert.strictEqual(fetchedState, "Karnataka");
     console.log("GSTIN auto-fetch verified for 29ADRFS2028L1ZG (R N Tuff Glassic)!");
 
+    // Test Microsoft India (07AAACM5586C1ZJ)
+    await page.locator("#customerGstin").fill("07AAACM5586C1ZJ");
+    await page.locator("#fetchGstinBtn").click();
+    await page.waitForTimeout(300);
+
+    fetchedName = await page.locator("#customerName").inputValue();
+    fetchedFlat = await page.locator("#flatNo").inputValue();
+    fetchedBuilding = await page.locator("#buildingName").inputValue();
+    fetchedState = await page.locator("#customerState").inputValue();
+    console.log("Auto-fetched for 07AAACM5586C1ZJ (Microsoft India):", { fetchedName, fetchedFlat, fetchedBuilding, fetchedState });
+    assert.ok(fetchedName.includes("Microsoft"), "Customer name should contain Microsoft");
+    assert.ok(fetchedBuilding.includes("Connaught Place") || fetchedBuilding.includes("Barakhamba") || fetchedFlat.includes("Cyber"), "Should contain Connaught Place or DLF");
+    assert.strictEqual(fetchedState, "Delhi");
+    console.log("GSTIN auto-fetch verified for 07AAACM5586C1ZJ (Microsoft India)!");
+
     console.log("All Playwright browser smoke test assertions PASSED!");
   } finally {
     if (browser) await browser.close();
