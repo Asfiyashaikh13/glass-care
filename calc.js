@@ -212,6 +212,10 @@
         if (nonZero.length > 0 && nonZero.every(x => x < 20)) {
           warnings.push("Unit is set to mm, but dimensions are all under 20 mm. Did you mean inches?");
         }
+      } else if (dimUnit === "ft") {
+        if (enteredH > 50 || enteredW > 50 || enteredD > 50) {
+          warnings.push("Unit is set to Feet (ft), but a dimension exceeds 50 feet. If you are entering millimetres (e.g. 1200 mm) or inches, please change Dimension Unit.");
+        }
       }
     }
 

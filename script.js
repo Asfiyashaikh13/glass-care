@@ -2817,7 +2817,36 @@ function numberToWords(num) {
 }
 
 /* EVENTS */
-[height, width, thickness, quantity, rate, discountPercent, gstRateInput, unitDisplay, dimensionUnitSelect, round3InchToggle].forEach(el => {
+let lastDimensionUnit = dimensionUnitSelect ? dimensionUnitSelect.value : "mm";
+if (dimensionUnitSelect) {
+  dimensionUnitSelect.addEventListener("focus", () => {
+    lastDimensionUnit = dimensionUnitSelect.value;
+  });
+  dimensionUnitSelect.addEventListener("change", () => {
+    const newUnit = dimensionUnitSelect.value;
+    const oldUnit = lastDimensionUnit || "mm";
+    if (oldUnit !== newUnit) {
+      [height, width, thickness].forEach(input => {
+        if (input && input.value !== "") {
+          const val = Number(input.value);
+          if (!isNaN(val) && val > 0) {
+            const mm = GlassCareCalc.toMm(val, oldUnit);
+            const converted = GlassCareCalc.fromMm(mm, newUnit);
+            const rounded = Math.abs(converted - Math.round(converted)) < 1e-4
+              ? Math.round(converted)
+              : Number(converted.toFixed(2));
+            input.value = rounded;
+          }
+        }
+      });
+      lastDimensionUnit = newUnit;
+      updateCalculation();
+      persistDraft();
+    }
+  });
+}
+
+[height, width, thickness, quantity, rate, discountPercent, gstRateInput, unitDisplay, round3InchToggle].forEach(el => {
   if (el) {
     el.addEventListener("input", () => {
       updateCalculation();
