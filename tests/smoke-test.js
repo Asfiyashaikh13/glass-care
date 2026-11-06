@@ -230,6 +230,19 @@ async function run() {
     assert.ok(fetchedFlat.includes("Kogilu Layout"), "Address should be Kogilu Layout");
     console.log("GSTIN auto-fetch verified for 29BNYPN6916L1ZU (Glass Care Enterprises)!");
 
+    // Test 29AACI1681G1ZL (14-char IOCL input auto-resolving to 29AAACI1681G1ZL Indian Oil Corporation Limited)
+    await page.locator("#customerGstin").fill("29AACI1681G1ZL");
+    await page.locator("#customerGstin").dispatchEvent("input");
+    await page.waitForTimeout(200);
+
+    fetchedName = await page.locator("#customerName").inputValue();
+    fetchedPhone = await page.locator("#customerPhone").inputValue();
+    const correctedGstin = await page.locator("#customerGstin").inputValue();
+    console.log("Auto-fetched from GSTIN 29AACI1681G1ZL:", { fetchedName, fetchedPhone, correctedGstin });
+    assert.strictEqual(fetchedName, "Indian Oil Corporation Limited");
+    assert.strictEqual(correctedGstin, "29AAACI1681G1ZL");
+    console.log("GSTIN auto-fetch verified for IOCL (29AAACI1681G1ZL)!");
+
     console.log("All Playwright browser smoke test assertions PASSED!");
   } finally {
     if (browser) await browser.close();

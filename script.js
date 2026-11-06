@@ -704,6 +704,12 @@ function initialize() {
         gstinField?.focus();
         return;
       }
+      if (val.length < 15 && !DEFAULT_CUSTOMER_DIRECTORY[val]) {
+        const remaining = 15 - val.length;
+        showGstinStatus(`GSTIN requires 15 characters (entered ${val.length} chars). Missing ${remaining} character${remaining > 1 ? "s" : ""}. Example: 29AAACI1681G1ZL`, "warning");
+        gstinField?.focus();
+        return;
+      }
       try {
         const raw = localStorage.getItem(GSTIN_DIRECTORY_KEY);
         if (raw) {
@@ -773,6 +779,20 @@ const DEFAULT_CUSTOMER_DIRECTORY = {
     flatNo: "No. 122/1 Ground Floor Kogilu Layout",
     buildingName: "Kogilu Main Road, Bellahalli Cross, Bengaluru",
     customerPhone: "9945988852",
+    state: "Karnataka"
+  },
+  "29AAACI1681G1ZL": {
+    name: "Indian Oil Corporation Limited",
+    flatNo: "No. 29, Indian Oil Bhavan, Mission Road",
+    buildingName: "P. Kalinga Rao Road, Bengaluru Urban",
+    customerPhone: "080-22221681",
+    state: "Karnataka"
+  },
+  "29AACI1681G1ZL": {
+    name: "Indian Oil Corporation Limited",
+    flatNo: "No. 29, Indian Oil Bhavan, Mission Road",
+    buildingName: "P. Kalinga Rao Road, Bengaluru Urban",
+    customerPhone: "080-22221681",
     state: "Karnataka"
   },
   "29AACCB6672L1Z6": {
@@ -1141,10 +1161,34 @@ async function handleGstinInput(rawVal, options = {}) {
   }
 
   if (clean.length < 15) {
+    const dir = getCustomerDirectory();
+    if (dir[clean]) {
+      const found = dir[clean];
+      const nameEl = document.getElementById("customerName");
+      const flatEl = document.getElementById("flatNo");
+      const buildEl = document.getElementById("buildingName");
+      const phoneEl = document.getElementById("customerPhone");
+      if (found.name && nameEl) nameEl.value = found.name;
+      if (found.flatNo && flatEl) flatEl.value = found.flatNo;
+      if (found.buildingName && buildEl) buildEl.value = found.buildingName;
+      if (found.customerPhone && phoneEl) phoneEl.value = found.customerPhone;
+      if (found.state && customerState) {
+        customerState.value = found.state;
+        updateTotals();
+      }
+      if (clean === "29AACI1681G1ZL") {
+        inputEl.value = "29AAACI1681G1ZL";
+      }
+      persistDraft();
+      showGstinStatus(`✓ Auto-populated customer details for ${found.name} (${found.state || "India"})`, "success");
+      return;
+    }
+
     if (clean.length >= 2) {
       const code = clean.slice(0, 2);
       const stateName = stateMap[code] || `Code ${code}`;
-      showGstinStatus(`State detected: ${stateName}. Enter 15-character GSTIN to auto-fill customer details.`, "info", false);
+      const missing = 15 - clean.length;
+      showGstinStatus(`State detected: ${stateName} • ${clean.length}/15 characters entered (missing ${missing} character${missing > 1 ? "s" : ""}).`, "info", false);
     }
     persistDraft();
     return;
