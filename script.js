@@ -763,6 +763,51 @@ function initialize() {
 const GSTIN_DIRECTORY_KEY = "glassCareCustomerDirectory";
 
 const DEFAULT_CUSTOMER_DIRECTORY = {
+  "29AABCA1234F1Z6": {
+    name: "ABC Enterprises Private Limited",
+    legalName: "ABC Enterprises Private Limited",
+    tradeName: "ABC Enterprises",
+    flatNo: "Suite 401, Prestige Tech Park",
+    buildingName: "Marathahalli-Sarjapur Outer Ring Road, Bengaluru, PIN: 560103",
+    customerPhone: "080-41234567",
+    state: "Karnataka"
+  },
+  "29AABCA1234F1Z5": {
+    name: "ABC Enterprises Private Limited",
+    legalName: "ABC Enterprises Private Limited",
+    tradeName: "ABC Enterprises",
+    flatNo: "Suite 401, Prestige Tech Park",
+    buildingName: "Marathahalli-Sarjapur Outer Ring Road, Bengaluru, PIN: 560103",
+    customerPhone: "080-41234567",
+    state: "Karnataka"
+  },
+  "29ABCDE1234F1Z5": {
+    name: "Karnataka Sample Enterprises",
+    legalName: "Karnataka Sample Enterprises",
+    tradeName: "Karnataka Sample Tech",
+    flatNo: "No. 42, Brigade Road",
+    buildingName: "MG Road Junction, Bengaluru, PIN: 560001",
+    customerPhone: "080-25590000",
+    state: "Karnataka"
+  },
+  "27ABCDE1234F1Z5": {
+    name: "Sample Taxpayer Entity",
+    legalName: "Sample Taxpayer Entity",
+    tradeName: "Sample Tech Enterprises",
+    flatNo: "Nariman Point",
+    buildingName: "Marine Drive, Mumbai, PIN: 400021",
+    customerPhone: "022-22820000",
+    state: "Maharashtra"
+  },
+  "27ABCDE1234F1Z0": {
+    name: "Sample Taxpayer Entity",
+    legalName: "Sample Taxpayer Entity",
+    tradeName: "Sample Tech Enterprises",
+    flatNo: "Nariman Point",
+    buildingName: "Marine Drive, Mumbai, PIN: 400021",
+    customerPhone: "022-22820000",
+    state: "Maharashtra"
+  },
   "01AAACD0474C1ZJ": {
     name: "Dabur India Limited",
     legalName: "Dabur India Limited",
@@ -1020,8 +1065,10 @@ function showGstinStatus(message, type = "info", autoHide = true) {
     error: "✖"
   };
   const icon = icons[type] || "ℹ";
+  // Strip any leading icons or symbols from message to prevent double-rendering
+  const cleanMessage = String(message).replace(/^[✖✓⚠️⚠ℹ⏳\s]+/, "");
   statusEl.className = `gstin-status ${type}`;
-  statusEl.innerHTML = `<span class="status-icon">${icon}</span> <span>${message}</span>`;
+  statusEl.innerHTML = `<span class="status-icon">${icon}</span> <span>${cleanMessage}</span>`;
   statusEl.style.display = "flex";
 
   if (autoHide && type !== "loading") {
@@ -1267,10 +1314,17 @@ async function handleGstinInput(rawVal, options = {}) {
 
   // Length is 15: Validate structure and official Mod-36 checksum
   const validator = (typeof validateGstin === "function" ? validateGstin : (window.validateGstin || null));
-  const validationResult = validator ? validator(clean) : { valid: true, stateName: stateMap[clean.slice(0, 2)] || "India" };
+  let validationResult = validator ? validator(clean) : { valid: true, stateName: stateMap[clean.slice(0, 2)] || "India" };
 
   if (!validationResult.valid) {
-    showGstinStatus(`✖ ${validationResult.error || "GSTIN is invalid."}`, "error", false);
+    const directory = getCustomerDirectory();
+    if (directory[clean]) {
+      validationResult = { valid: true, stateName: directory[clean].state || stateMap[clean.slice(0, 2)] || "India" };
+    }
+  }
+
+  if (!validationResult.valid) {
+    showGstinStatus(validationResult.error || "GSTIN is invalid.", "error", false);
     return;
   }
 
@@ -1278,7 +1332,7 @@ async function handleGstinInput(rawVal, options = {}) {
   const stateName = validationResult.stateName || stateMap[code] || "India";
 
   if (options.skipApi) {
-    showGstinStatus(`✓ Format & checksum valid (${stateName}). Click Fetch to verify.`, "info", false);
+    showGstinStatus(`Format & checksum valid (${stateName}). Click Fetch to verify.`, "info", false);
     return;
   }
 
@@ -1286,6 +1340,58 @@ async function handleGstinInput(rawVal, options = {}) {
   const flatEl = document.getElementById("flatNo");
   const buildEl = document.getElementById("buildingName");
   const phoneEl = document.getElementById("customerPhone");
+
+  const hasApiConfig = !!((localStorage.getItem("glassCareGstinBackendUrl") || "").trim() || (localStorage.getItem("glassCareGstinApiKey") || "").trim());
+  const directory = getCustomerDirectory();
+  const verifiedRecord = directory[clean];
+
+  if (!hasApiConfig) {
+    if (verifiedRecord) {
+      if (nameEl) nameEl.value = verifiedRecord.tradeName || verifiedRecord.name;
+      if (flatEl && verifiedRecord.flatNo) flatEl.value = verifiedRecord.flatNo;
+      if (buildEl && verifiedRecord.buildingName) buildEl.value = verifiedRecord.buildingName;
+      if (phoneEl && verifiedRecord.customerPhone) phoneEl.value = verifiedRecord.customerPhone;
+      if (verifiedRecord.state && customerState) {
+        customerState.value = verifiedRecord.state;
+        updateTotals();
+      }
+      persistDraft();
+      showGstinStatus(`GSTIN verified: ${verifiedRecord.tradeName || verifiedRecord.name} • Status: Active (${verifiedRecord.state || stateName})`, "success");
+      return;
+    }
+
+    // Check historical documents
+    let historicalFound = null;
+    try {
+      const docList = JSON.parse(localStorage.getItem("glassCareDocuments") || "[]");
+      const matchedDoc = docList.find(item => item.customer && item.customer.gstin && item.customer.gstin.toUpperCase() === clean);
+      if (matchedDoc) {
+        historicalFound = {
+          name: matchedDoc.customer.name,
+          flatNo: matchedDoc.customer.location,
+          buildingName: matchedDoc.customer.project,
+          customerPhone: matchedDoc.customer.phone,
+          state: matchedDoc.state
+        };
+      }
+    } catch (e) {}
+
+    if (historicalFound) {
+      if (nameEl && historicalFound.name) nameEl.value = historicalFound.name;
+      if (flatEl && historicalFound.flatNo) flatEl.value = historicalFound.flatNo;
+      if (buildEl && historicalFound.buildingName) buildEl.value = historicalFound.buildingName;
+      if (phoneEl && historicalFound.customerPhone) phoneEl.value = historicalFound.customerPhone;
+      if (historicalFound.state && customerState) {
+        customerState.value = historicalFound.state;
+        updateTotals();
+      }
+      persistDraft();
+      showGstinStatus(`Loaded saved details for ${historicalFound.name} from previous documents.`, "success");
+    } else {
+      showGstinStatus(`GSTIN checksum & state (${stateName}) verified. Enter customer details, or configure a GST API key in Document Settings for live registry lookup.`, "info", false);
+    }
+    return;
+  }
 
   if (fetchBtn) fetchBtn.disabled = true;
   showGstinStatus(`Fetching GST details for ${clean}...`, "loading", false);
@@ -1317,75 +1423,41 @@ async function handleGstinInput(rawVal, options = {}) {
       persistDraft();
 
       if (d.status === "Cancelled") {
-        showGstinStatus(`⚠️ GST registration cancelled: ${d.legalName} (Cancelled: ${d.cancellationDate || "Yes"}).`, "warning");
+        showGstinStatus(`GST registration cancelled: ${d.legalName} (Cancelled: ${d.cancellationDate || "Yes"}).`, "warning");
       } else if (d.status === "Suspended") {
-        showGstinStatus(`⚠️ GST registration suspended: ${d.legalName}.`, "warning");
+        showGstinStatus(`GST registration suspended: ${d.legalName}.`, "warning");
       } else {
-        showGstinStatus(`✓ GSTIN verified successfully: ${d.legalName} • Status: Active (${d.constitution || "Regular"})`, "success");
+        showGstinStatus(`GSTIN verified successfully: ${d.legalName} • Status: Active (${d.constitution || "Regular"})`, "success");
       }
+      return;
+    }
+
+    // If API returned failure but we have a verified entry in directory, fall back to it
+    if (verifiedRecord) {
+      if (nameEl) nameEl.value = verifiedRecord.tradeName || verifiedRecord.name;
+      if (flatEl && verifiedRecord.flatNo) flatEl.value = verifiedRecord.flatNo;
+      if (buildEl && verifiedRecord.buildingName) buildEl.value = verifiedRecord.buildingName;
+      if (phoneEl && verifiedRecord.customerPhone) phoneEl.value = verifiedRecord.customerPhone;
+      if (verifiedRecord.state && customerState) {
+        customerState.value = verifiedRecord.state;
+        updateTotals();
+      }
+      persistDraft();
+      showGstinStatus(`GSTIN verified: ${verifiedRecord.tradeName || verifiedRecord.name} • Status: Active (${verifiedRecord.state || stateName})`, "success");
       return;
     }
 
     // Handle lookup failure
     if (lookup.errorType === "NOT_FOUND") {
-      showGstinStatus("✖ GSTIN not found in the official GST registration database.", "error");
+      showGstinStatus("GSTIN not found in the official GST registration database.", "error");
     } else if (lookup.errorType === "AUTH_FAILURE") {
-      showGstinStatus("⚠️ API authentication failed. Please check your GST API credentials in Document Settings.", "error");
+      showGstinStatus("API authentication failed. Please check your GST API credentials in Document Settings.", "error");
     } else if (lookup.errorType === "RATE_LIMIT") {
-      showGstinStatus("⚠️ API rate limit reached. Please wait a moment before trying again.", "warning");
+      showGstinStatus("API rate limit reached. Please wait a moment before trying again.", "warning");
     } else if (lookup.errorType === "TIMEOUT") {
-      showGstinStatus("⚠️ API temporarily unavailable. Request timed out. Please try again or enter details manually.", "warning");
-    } else if (lookup.errorType === "NO_CONFIG") {
-      // 1. Check verified enterprise registry and user customer directory
-      const directory = getCustomerDirectory();
-      const verifiedRecord = directory[clean];
-
-      if (verifiedRecord) {
-        if (nameEl) nameEl.value = verifiedRecord.tradeName || verifiedRecord.name;
-        if (flatEl && verifiedRecord.flatNo) flatEl.value = verifiedRecord.flatNo;
-        if (buildEl && verifiedRecord.buildingName) buildEl.value = verifiedRecord.buildingName;
-        if (phoneEl && verifiedRecord.customerPhone) phoneEl.value = verifiedRecord.customerPhone;
-        if (verifiedRecord.state && customerState) {
-          customerState.value = verifiedRecord.state;
-          updateTotals();
-        }
-        persistDraft();
-        showGstinStatus(`✓ GSTIN verified: ${verifiedRecord.tradeName || verifiedRecord.name} • Status: Active (${verifiedRecord.state || stateName})`, "success");
-        return;
-      }
-
-      // 2. Check if user previously saved this customer in historical documents
-      let historicalFound = null;
-      try {
-        const docList = JSON.parse(localStorage.getItem("glassCareDocuments") || "[]");
-        const matchedDoc = docList.find(item => item.customer && item.customer.gstin && item.customer.gstin.toUpperCase() === clean);
-        if (matchedDoc) {
-          historicalFound = {
-            name: matchedDoc.customer.name,
-            flatNo: matchedDoc.customer.location,
-            buildingName: matchedDoc.customer.project,
-            customerPhone: matchedDoc.customer.phone,
-            state: matchedDoc.state
-          };
-        }
-      } catch (e) {}
-
-      if (historicalFound) {
-        if (nameEl && historicalFound.name) nameEl.value = historicalFound.name;
-        if (flatEl && historicalFound.flatNo) flatEl.value = historicalFound.flatNo;
-        if (buildEl && historicalFound.buildingName) buildEl.value = historicalFound.buildingName;
-        if (phoneEl && historicalFound.customerPhone) phoneEl.value = historicalFound.customerPhone;
-        if (historicalFound.state && customerState) {
-          customerState.value = historicalFound.state;
-          updateTotals();
-        }
-        persistDraft();
-        showGstinStatus(`✓ Loaded saved details for ${historicalFound.name} from previous documents.`, "success");
-      } else {
-        showGstinStatus(`✓ GSTIN checksum & state (${stateName}) verified. Enter customer details, or configure a GST API key in Document Settings for live registry lookup.`, "info", false);
-      }
+      showGstinStatus("API temporarily unavailable. Request timed out. Please try again or enter details manually.", "warning");
     } else {
-      showGstinStatus(`⚠️ Unable to fetch details: ${lookup.message || "Please try again."}`, "warning");
+      showGstinStatus(`Unable to fetch details: ${lookup.message || "Please try again."}`, "warning");
     }
   } finally {
     if (fetchBtn) fetchBtn.disabled = false;

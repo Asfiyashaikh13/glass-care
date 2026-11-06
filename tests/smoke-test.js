@@ -337,6 +337,21 @@ async function run() {
     assert.strictEqual(fetchedState, "Jammu and Kashmir");
     console.log("GSTIN auto-fetch verified for Dabur India Limited (01AAACD0474C1ZJ)!");
 
+    // Test sample GSTIN 29AABCA1234F1Z6 (ABC Enterprises Private Limited)
+    await page.locator("#customerGstin").fill("29AABCA1234F1Z6");
+    await page.locator("#fetchGstinBtn").click();
+    await page.waitForTimeout(300);
+
+    fetchedName = await page.locator("#customerName").inputValue();
+    fetchedFlat = await page.locator("#flatNo").inputValue();
+    fetchedBuilding = await page.locator("#buildingName").inputValue();
+    fetchedState = await page.locator("#customerState").inputValue();
+    console.log("Auto-fetched for 29AABCA1234F1Z6 (ABC Enterprises):", { fetchedName, fetchedFlat, fetchedBuilding, fetchedState });
+    assert.ok(fetchedName.includes("ABC Enterprises"), "Customer name should contain ABC Enterprises");
+    assert.ok(fetchedBuilding.includes("Prestige Tech Park") || fetchedFlat.includes("Prestige Tech Park"), "Should contain Prestige Tech Park");
+    assert.strictEqual(fetchedState, "Karnataka");
+    console.log("GSTIN auto-fetch verified for sample 29AABCA1234F1Z6!");
+
     console.log("All Playwright browser smoke test assertions PASSED!");
   } finally {
     if (browser) await browser.close();
