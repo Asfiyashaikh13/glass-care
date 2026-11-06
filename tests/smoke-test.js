@@ -199,18 +199,21 @@ async function run() {
     console.log("Custom category & item name dropdown persistence verified!");
 
     // 8. Test GSTIN auto-fetch without typing company details manually
-    await page.locator("#customerGstin").fill("29AABCZ3983D1ZG");
+    await page.locator("#customerGstin").fill("29AACCB6672L1Z6");
     await page.locator("#customerGstin").dispatchEvent("change");
     await page.waitForTimeout(200);
 
     const fetchedName = await page.locator("#customerName").inputValue();
+    const fetchedPhone = await page.locator("#customerPhone").inputValue();
+    const fetchedFlat = await page.locator("#flatNo").inputValue();
     const fetchedBuilding = await page.locator("#buildingName").inputValue();
     const fetchedState = await page.locator("#customerState").inputValue();
-    console.log("Auto-fetched from GSTIN:", { fetchedName, fetchedBuilding, fetchedState });
-    assert.strictEqual(fetchedName, "Google India Private Limited");
-    assert.ok(fetchedBuilding.includes("RMZ Infinity"), "Building name should be populated");
+    console.log("Auto-fetched from GSTIN 29AACCB6672L1Z6:", { fetchedName, fetchedPhone, fetchedFlat, fetchedBuilding, fetchedState });
+    assert.strictEqual(fetchedName, "BSE Limited");
+    assert.strictEqual(fetchedPhone, "080-23456789");
+    assert.ok(fetchedFlat.includes("Raghavendra Complex"), "Flat / Address should be populated");
     assert.strictEqual(fetchedState, "Karnataka");
-    console.log("GSTIN auto-fetch verified!");
+    console.log("GSTIN auto-fetch verified for 29AACCB6672L1Z6!");
 
     console.log("All Playwright browser smoke test assertions PASSED!");
   } finally {

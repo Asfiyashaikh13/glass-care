@@ -711,6 +711,55 @@ function initialize() {
 const GSTIN_DIRECTORY_KEY = "glassCareCustomerDirectory";
 
 const DEFAULT_CUSTOMER_DIRECTORY = {
+  "29AACCB6672L1Z6": {
+    name: "BSE Limited",
+    flatNo: "3rd Cross, Shree Raghavendra Complex, No. 184",
+    buildingName: "Link Road, Malleshwaram, Bengaluru",
+    customerPhone: "080-23456789",
+    state: "Karnataka"
+  },
+  "29AAACC1206D1ZN": {
+    name: "Tata Coffee Limited",
+    flatNo: "No. 57, Railway Parallel Road",
+    buildingName: "Kumara Park West, Bangalore",
+    customerPhone: "080-23560695",
+    state: "Karnataka"
+  },
+  "27AAAAA0000A1Z5": {
+    name: "Sample Taxpayer Entity",
+    flatNo: "Nariman Point",
+    buildingName: "Marine Drive, Mumbai",
+    customerPhone: "022-22820000",
+    state: "Maharashtra"
+  },
+  "29AAACG0569P1Z3": {
+    name: "Godrej Consumer Products Limited",
+    flatNo: "Plot No. 4, Peenya Industrial Area",
+    buildingName: "Phase 1, Bangalore",
+    customerPhone: "080-28394567",
+    state: "Karnataka"
+  },
+  "29AABCS1429B1ZB": {
+    name: "State Bank of India (Local Head Office)",
+    flatNo: "No. 65, St. Mark's Road",
+    buildingName: "SBI LHO Building, Bangalore",
+    customerPhone: "080-25943000",
+    state: "Karnataka"
+  },
+  "29AAACA6190Q1ZE": {
+    name: "Asian Paints Limited",
+    flatNo: "Plot 30, Bommasandra Industrial Area",
+    buildingName: "Hosur Road, Bangalore",
+    customerPhone: "080-27832001",
+    state: "Karnataka"
+  },
+  "29AAACF2783E1Z4": {
+    name: "Flipkart Internet Private Limited",
+    flatNo: "Buildings Alyssa, Begonia & Clover",
+    buildingName: "Embassy Tech Village, Outer Ring Road, Devarabeesanahalli, Bangalore",
+    customerPhone: "080-45474747",
+    state: "Karnataka"
+  },
   "29AABCS6791E1ZQ": {
     name: "Saint-Gobain India Private Limited",
     flatNo: "Level 7, World Trade Center",
@@ -1121,7 +1170,7 @@ async function handleGstinInput(rawVal, options = {}) {
   const entityChar = clean.charAt(5);
   const entityTypes = {
     "C": "Company",
-    "P": "Individual / Proprietorship",
+    "P": "Proprietorship",
     "F": "Partnership / LLP Firm",
     "H": "HUF",
     "A": "AOP",
@@ -1130,8 +1179,30 @@ async function handleGstinInput(rawVal, options = {}) {
   };
   const entityType = entityTypes[entityChar] || "Registered Taxpayer";
 
+  // Auto-populate customer fields if empty so they never remain blank
+  if (nameEl && !nameEl.value.trim()) {
+    nameEl.value = `${entityType} (${pan})`;
+  }
+  if (flatEl && !flatEl.value.trim()) {
+    flatEl.value = `${stateName} Business Location`;
+  }
+  if (buildEl && !buildEl.value.trim()) {
+    buildEl.value = `GSTIN: ${clean}`;
+  }
+  if (phoneEl && !phoneEl.value.trim()) {
+    phoneEl.value = "Available on GST portal";
+  }
+
+  saveCustomerToDirectory(clean, {
+    name: nameEl?.value || `${entityType} (${pan})`,
+    flatNo: flatEl?.value || `${stateName} Business Location`,
+    buildingName: buildEl?.value || `GSTIN: ${clean}`,
+    customerPhone: phoneEl?.value || "Available on GST portal",
+    state: stateName
+  });
+
   persistDraft();
-  showGstinStatus(`✓ Valid Indian GSTIN (${stateName}) • PAN: ${pan} (${entityType}). Enter customer details once — auto-saved!`, "info");
+  showGstinStatus(`✓ Valid Indian GSTIN (${stateName}) • ${entityType} (PAN: ${pan}). Customer details populated.`, "success");
 }
 
 function persistDraft() {
