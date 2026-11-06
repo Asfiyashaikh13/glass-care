@@ -680,6 +680,9 @@ function initialize() {
   if (gstinField) {
     if (savedDraft.customerGstin) {
       gstinField.value = savedDraft.customerGstin;
+      if (!savedDraft.customerName) {
+        setTimeout(() => handleGstinInput(savedDraft.customerGstin), 50);
+      }
     }
     gstinField.addEventListener("input", (e) => {
       clearTimeout(gstinDebounceTimer);
@@ -689,10 +692,15 @@ function initialize() {
         handleGstinInput(val, { skipApi: true });
         return;
       }
-      // Debounce 400ms on 15 chars to avoid duplicate calls while user is typing
-      gstinDebounceTimer = setTimeout(() => {
-        handleGstinInput(val);
-      }, 400);
+      // Instant auto-fetch as soon as 15 characters are entered
+      handleGstinInput(val);
+    });
+    gstinField.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        clearTimeout(gstinDebounceTimer);
+        handleGstinInput(gstinField.value);
+      }
     });
     gstinField.addEventListener("change", (e) => {
       clearTimeout(gstinDebounceTimer);
@@ -700,7 +708,7 @@ function initialize() {
     });
     gstinField.addEventListener("paste", () => {
       clearTimeout(gstinDebounceTimer);
-      setTimeout(() => handleGstinInput(gstinField.value), 50);
+      setTimeout(() => handleGstinInput(gstinField.value), 20);
     });
   }
 
