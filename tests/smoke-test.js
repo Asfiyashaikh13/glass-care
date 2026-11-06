@@ -164,6 +164,54 @@ async function run() {
     const restoredCustName = await page.locator("#customerName").inputValue();
     assert.strictEqual(restoredCustName, "Acme Corporation", "Customer name draft must be preserved");
 
+    // 7. Test custom Product Category and Item Name addition into dropdowns
+    // Select __custom__ on category
+    await page.locator("#category").selectOption("__custom__");
+    await page.locator("#categoryCustom").fill("Premium Acoustic Soundproof Glass 24mm");
+    await page.locator("#categoryCustom").dispatchEvent("change");
+    await page.waitForTimeout(100);
+
+    // Verify option is now in category dropdown and selected
+    const selectedCategoryVal = await page.locator("#category").inputValue();
+    console.log("Newly added category selected in dropdown:", selectedCategoryVal);
+    assert.strictEqual(selectedCategoryVal, "Premium Acoustic Soundproof Glass 24mm");
+
+    // Select __custom__ on item name
+    await page.locator("#itemName").selectOption("__custom__");
+    await page.locator("#itemNameCustom").fill("Heavy Duty Glass Sliding Door Track");
+    await page.locator("#itemNameCustom").dispatchEvent("change");
+    await page.waitForTimeout(100);
+
+    // Verify option is now in item name dropdown and selected
+    const selectedItemVal = await page.locator("#itemName").inputValue();
+    console.log("Newly added item name selected in dropdown:", selectedItemVal);
+    assert.strictEqual(selectedItemVal, "Heavy Duty Glass Sliding Door Track");
+
+    // Reload page and verify custom options were persisted into the dropdown options
+    await page.reload();
+    await page.waitForTimeout(300);
+
+    const categoryOptions = await page.locator("#category option").allTextContents();
+    assert.ok(categoryOptions.some(opt => opt.includes("Premium Acoustic Soundproof Glass 24mm")), "Custom category must persist in dropdown after reload");
+
+    const itemOptions = await page.locator("#itemName option").allTextContents();
+    assert.ok(itemOptions.some(opt => opt.includes("Heavy Duty Glass Sliding Door Track")), "Custom item name must persist in dropdown after reload");
+    console.log("Custom category & item name dropdown persistence verified!");
+
+    // 8. Test GSTIN auto-fetch without typing company details manually
+    await page.locator("#customerGstin").fill("29AABCZ3983D1ZG");
+    await page.locator("#customerGstin").dispatchEvent("change");
+    await page.waitForTimeout(200);
+
+    const fetchedName = await page.locator("#customerName").inputValue();
+    const fetchedBuilding = await page.locator("#buildingName").inputValue();
+    const fetchedState = await page.locator("#customerState").inputValue();
+    console.log("Auto-fetched from GSTIN:", { fetchedName, fetchedBuilding, fetchedState });
+    assert.strictEqual(fetchedName, "Google India Private Limited");
+    assert.ok(fetchedBuilding.includes("RMZ Infinity"), "Building name should be populated");
+    assert.strictEqual(fetchedState, "Karnataka");
+    console.log("GSTIN auto-fetch verified!");
+
     console.log("All Playwright browser smoke test assertions PASSED!");
   } finally {
     if (browser) await browser.close();

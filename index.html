@@ -105,6 +105,13 @@
         <input type="checkbox" id="globalRound3InchSetting">
         <span>Default "Round size up to next 3 inches (76.2 mm)" for newly added items</span>
       </label>
+      <div style="display: flex; flex-direction: column; gap: 4px;">
+        <label for="gstinApiKeySetting" style="font-size: 13px; color: #334155; font-weight: 500;">
+          GSTIN Lookup API Key (Optional — for live automated lookup across India):
+        </label>
+        <input type="password" id="gstinApiKeySetting" placeholder="e.g. API key from gstinapi.in or custom provider" style="padding: 7px 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 12px; width: 100%; max-width: 440px;">
+        <small style="color: #64748b; font-size: 11px;">Optional: Enter a free key from <a href="https://www.gstinapi.in" target="_blank" rel="noopener" style="color: #2563eb; text-decoration: underline;">gstinapi.in</a> for direct, real-time GSTIN company &amp; address lookup.</small>
+      </div>
       <div style="display: flex; gap: 10px; align-items: center; margin-top: 4px;">
         <button type="button" class="secondary-action" id="saveSettingsBtn">Save settings</button>
         <button type="button" id="backupDataJsonBtn" class="secondary-action" style="background:#f1f5f9;color:#334155;border:1px solid #cbd5e1;cursor:pointer;">💾 Backup All Data (JSON)</button>

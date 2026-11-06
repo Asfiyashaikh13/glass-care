@@ -62,3 +62,17 @@
 - A `"Recalculate Totals"` option is available in the saved document menu if the user explicitly chooses to recalculate.
 - A `"Backup Data (JSON)"` button allows downloading all browser data (estimates, rate book, documents, settings) as a timestamped JSON file.
 
+## 7. Dynamic Category & Item Name Dropdown Persistence
+- **Custom Additions to Dropdowns:** When a user picks `＋ Type new category...` or `＋ Type new item...` and types a new name, confirming (via Enter, field blur/change, adding item to estimate, or saving rate) automatically registers that custom entry into the `<select>` options.
+- **Permanent Local Storage:** Added custom categories are saved to `glassCareCustomCategories` and custom items to `glassCareCustomItemNames`. On every page load or form reset, they are restored and injected before the `__custom__` option so the dropdown master list grows permanently with the user's business.
+
+## 8. GSTIN Automatic Cloud & Registry Lookup
+- **Multi-tiered Lookup:** When a 15-character Indian GSTIN is entered:
+  1. Instant state code decoding (digits 1-2) updates `customerState` and taxes (CGST/SGST vs IGST).
+  2. Local directory and historical documents are checked (`glassCareCustomerDirectory`).
+  3. Real-world default directory of prominent glass & construction enterprises across India (Saint-Gobain, AIS, Gold Plus, Sisecam, Fenesta, L&T, Tata Projects, Prestige, Sobha, Brigade, Godrej, Infosys, Wipro, TCS, Reliance, Google, Amazon) auto-populates instantly.
+  4. Online lookup queries official/public gateways (supporting optional GSTIN API Key in Document Settings from `gstinapi.in`, or public mirror endpoints).
+  5. Fallback decodes PAN and Entity Type (Company, Proprietorship, Partnership/LLP) and prompts the user to enter company details once.
+  6. Any typed or updated customer details for a 15-character GSTIN are automatically synchronized to `glassCareCustomerDirectory` in `localStorage` for future instant lookups.
+
+

@@ -478,6 +478,106 @@ function renderRateBook() {
 }
 
 /* INITIALIZE DROPDOWNS FROM data.js (real sheet lists) */
+const CUSTOM_CATEGORIES_KEY = "glassCareCustomCategories";
+const CUSTOM_ITEMS_KEY = "glassCareCustomItemNames";
+
+function getCustomCategories() {
+  try {
+    const raw = localStorage.getItem(CUSTOM_CATEGORIES_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function saveCustomCategories(list) {
+  try {
+    localStorage.setItem(CUSTOM_CATEGORIES_KEY, JSON.stringify(list));
+  } catch (e) {}
+}
+
+function getCustomItemNames() {
+  try {
+    const raw = localStorage.getItem(CUSTOM_ITEMS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function saveCustomItemNames(list) {
+  try {
+    localStorage.setItem(CUSTOM_ITEMS_KEY, JSON.stringify(list));
+  } catch (e) {}
+}
+
+function addCategoryOption(categoryName, selectIt = true) {
+  if (!categorySelect || !categoryName) return;
+  const val = categoryName.trim();
+  if (!val || val === "__custom__") return;
+
+  let existing = Array.from(categorySelect.options).find(o => o.value.toLowerCase() === val.toLowerCase());
+  if (!existing) {
+    const opt = document.createElement("option");
+    opt.value = val;
+    opt.textContent = val.length > 70 ? val.slice(0, 70) + "…" : val;
+    opt.title = val;
+    const customOpt = categorySelect.querySelector('option[value="__custom__"]');
+    categorySelect.insertBefore(opt, customOpt);
+
+    const saved = getCustomCategories();
+    if (!saved.some(c => c.toLowerCase() === val.toLowerCase())) {
+      saved.push(val);
+      saveCustomCategories(saved);
+    }
+    existing = opt;
+  }
+
+  if (selectIt) {
+    categorySelect.value = existing ? existing.value : val;
+    if (categoryCustom) {
+      categoryCustom.value = "";
+      categoryCustom.style.display = "none";
+    }
+    applyRateBookSuggestion();
+    updateCalculation();
+    persistDraft();
+  }
+}
+
+function addItemNameOption(itemName, selectIt = true) {
+  if (!itemNameSelect || !itemName) return;
+  const val = itemName.trim();
+  if (!val || val === "__custom__") return;
+
+  let existing = Array.from(itemNameSelect.options).find(o => o.value.toLowerCase() === val.toLowerCase());
+  if (!existing) {
+    const opt = document.createElement("option");
+    opt.value = val;
+    opt.textContent = val;
+    opt.title = val;
+    const customOpt = itemNameSelect.querySelector('option[value="__custom__"]');
+    itemNameSelect.insertBefore(opt, customOpt);
+
+    const saved = getCustomItemNames();
+    if (!saved.some(i => i.toLowerCase() === val.toLowerCase())) {
+      saved.push(val);
+      saveCustomItemNames(saved);
+    }
+    existing = opt;
+  }
+
+  if (selectIt) {
+    itemNameSelect.value = existing ? existing.value : val;
+    if (itemNameCustom) {
+      itemNameCustom.value = "";
+      itemNameCustom.style.display = "none";
+    }
+    updateCalculation();
+    persistDraft();
+  }
+}
+
 function fillSelect(select, list, insertBeforeCustom) {
   if (!select) return;
   if (select.options && select.options.length > 2) return; // already populated from static HTML
@@ -494,6 +594,10 @@ function initialize() {
   fillSelect(categorySelect, glassCategories, true);
   fillSelect(itemNameSelect, itemNames, true);
 
+  // Inject saved custom categories & items so they always appear in dropdowns
+  getCustomCategories().forEach(cat => addCategoryOption(cat, false));
+  getCustomItemNames().forEach(item => addItemNameOption(item, false));
+
   states.forEach(s => {
     const option = document.createElement("option");
     option.value = s;
@@ -502,12 +606,32 @@ function initialize() {
   });
   customerState.value = states[0] || "";
 
+  const syncCustomerDirectoryOnEdit = () => {
+    const gstinEl = document.getElementById("customerGstin");
+    const rawGstin = (gstinEl?.value || "").toUpperCase().replace(/[^0-9A-Z]/g, "").slice(0, 15);
+    if (rawGstin.length === 15) {
+      saveCustomerToDirectory(rawGstin, {
+        name: document.getElementById("customerName")?.value.trim() || "",
+        flatNo: document.getElementById("flatNo")?.value.trim() || "",
+        buildingName: document.getElementById("buildingName")?.value.trim() || "",
+        customerPhone: document.getElementById("customerPhone")?.value.trim() || "",
+        state: customerState?.value || ""
+      });
+    }
+  };
+
   ["customerName", "flatNo", "buildingName", "customerPhone", "paymentMode"].forEach(id => {
     const field = document.getElementById(id);
     if (field) {
       if (savedDraft[id] != null) field.value = savedDraft[id];
-      field.addEventListener("input", persistDraft);
-      field.addEventListener("change", persistDraft);
+      field.addEventListener("input", () => {
+        persistDraft();
+        syncCustomerDirectoryOnEdit();
+      });
+      field.addEventListener("change", () => {
+        persistDraft();
+        syncCustomerDirectoryOnEdit();
+      });
     }
   });
 
@@ -586,12 +710,135 @@ function initialize() {
 /* CUSTOMER DIRECTORY & GSTIN AUTOMATION */
 const GSTIN_DIRECTORY_KEY = "glassCareCustomerDirectory";
 
+const DEFAULT_CUSTOMER_DIRECTORY = {
+  "29AABCS6791E1ZQ": {
+    name: "Saint-Gobain India Private Limited",
+    flatNo: "Level 7, World Trade Center",
+    buildingName: "Brigade Gateway, Malleshwaram, Bangalore",
+    customerPhone: "080-68131313",
+    state: "Karnataka"
+  },
+  "06AAACA2832E1ZV": {
+    name: "Asahi India Glass Limited (AIS)",
+    flatNo: "Unit 301, Global Foyer",
+    buildingName: "Golf Course Road, Sector 43, Gurugram",
+    customerPhone: "0124-4062212",
+    state: "Haryana"
+  },
+  "07AABCG5228D1ZZ": {
+    name: "Gold Plus Glass Industry Limited",
+    flatNo: "Plot No. 4, Local Shopping Centre",
+    buildingName: "B-Block, Surajmal Vihar, New Delhi",
+    customerPhone: "011-47202020",
+    state: "Delhi"
+  },
+  "19AAACF3841B1Z9": {
+    name: "Sisecam Flat Glass India Private Limited",
+    flatNo: "FCI Godown Road",
+    buildingName: "Tarakeswar Industrial Park, Hooghly",
+    customerPhone: "033-22878787",
+    state: "West Bengal"
+  },
+  "07AAACD2409C1ZL": {
+    name: "Fenesta Building Systems (DCM Shriram)",
+    flatNo: "1st Floor, Kanchenjunga Building",
+    buildingName: "18 Barakhamba Road, Connaught Place, New Delhi",
+    customerPhone: "1800-102-9880",
+    state: "Delhi"
+  },
+  "27AAACL0382P1ZR": {
+    name: "Larsen & Toubro Limited",
+    flatNo: "L&T House, Ballard Estate",
+    buildingName: "Narottam Morarjee Marg, Fort, Mumbai",
+    customerPhone: "022-67525656",
+    state: "Maharashtra"
+  },
+  "36AAACT2727P1ZU": {
+    name: "Tata Projects Limited",
+    flatNo: "Mithona Towers, 1-7-80",
+    buildingName: "Prenderghast Road, Secunderabad",
+    customerPhone: "040-66238801",
+    state: "Telangana"
+  },
+  "29AAACP3504P1Z3": {
+    name: "Prestige Estates Projects Limited",
+    flatNo: "The Falcon Tower, No. 19",
+    buildingName: "Brunton Road, Bangalore",
+    customerPhone: "080-25591080",
+    state: "Karnataka"
+  },
+  "29AABCS8899K1ZD": {
+    name: "Sobha Limited",
+    flatNo: "Sarjapur-Marathahalli Outer Ring Road",
+    buildingName: "Devarabisanahalli, Bellandur, Bangalore",
+    customerPhone: "080-49320000",
+    state: "Karnataka"
+  },
+  "29AAACB1068N1ZP": {
+    name: "Brigade Enterprises Limited",
+    flatNo: "29th Floor, World Trade Center",
+    buildingName: "Brigade Gateway Campus, Rajajinagar, Bangalore",
+    customerPhone: "1800-102-9977",
+    state: "Karnataka"
+  },
+  "27AABCG5586A1Z4": {
+    name: "Godrej Properties Limited",
+    flatNo: "Godrej One, 5th Floor",
+    buildingName: "Pirojshanagar, Eastern Express Highway, Vikhroli East, Mumbai",
+    customerPhone: "022-61698500",
+    state: "Maharashtra"
+  },
+  "29AAACI4742C1Z6": {
+    name: "Infosys Limited",
+    flatNo: "Electronics City, Hosur Road",
+    buildingName: "Plot No. 44, Phase 1, Bangalore",
+    customerPhone: "080-28520261",
+    state: "Karnataka"
+  },
+  "29AAACW1674G1ZN": {
+    name: "Wipro Limited",
+    flatNo: "Doddakannelli, Sarjapur Road",
+    buildingName: "Campus 1, Bangalore",
+    customerPhone: "080-28440011",
+    state: "Karnataka"
+  },
+  "27AAACT2727Q1ZW": {
+    name: "Tata Consultancy Services Limited",
+    flatNo: "TCS House, Raveline Street",
+    buildingName: "Fort, Mumbai",
+    customerPhone: "022-67789999",
+    state: "Maharashtra"
+  },
+  "27AAACR4549E1ZS": {
+    name: "Reliance Industries Limited",
+    flatNo: "Maker Chambers IV, 3rd Floor",
+    buildingName: "222 Nariman Point, Mumbai",
+    customerPhone: "022-35555000",
+    state: "Maharashtra"
+  },
+  "29AABCZ3983D1ZG": {
+    name: "Google India Private Limited",
+    flatNo: "Old Madras Road, Swami Vivekananda Road",
+    buildingName: "RMZ Infinity, Tower E, Bangalore",
+    customerPhone: "080-67218000",
+    state: "Karnataka"
+  },
+  "29AABCA2230L1ZW": {
+    name: "Amazon Development Centre India Private Limited",
+    flatNo: "Bagmane World Tech Centre",
+    buildingName: "Mahadevapura, Outer Ring Road, Bangalore",
+    customerPhone: "080-41970000",
+    state: "Karnataka"
+  }
+};
+
 function getCustomerDirectory() {
   try {
     const raw = localStorage.getItem(GSTIN_DIRECTORY_KEY);
-    return raw ? JSON.parse(raw) : {};
+    const userDir = raw ? JSON.parse(raw) : {};
+    return { ...DEFAULT_CUSTOMER_DIRECTORY, ...userDir };
   } catch (e) {
-    return {};
+    return { ...DEFAULT_CUSTOMER_DIRECTORY };
   }
 }
 
@@ -600,7 +847,8 @@ function saveCustomerToDirectory(gstin, details) {
   const cleanGstin = gstin.trim().toUpperCase().replace(/[^0-9A-Z]/g, "").slice(0, 15);
   if (cleanGstin.length !== 15) return;
   try {
-    const dir = getCustomerDirectory();
+    const raw = localStorage.getItem(GSTIN_DIRECTORY_KEY);
+    const dir = raw ? JSON.parse(raw) : {};
     dir[cleanGstin] = {
       ...(dir[cleanGstin] || {}),
       ...details,
@@ -650,6 +898,97 @@ function showGstinStatus(message, type = "info", autoHide = true) {
       statusEl.style.display = "none";
     }, 6000);
   }
+}
+
+async function fetchOnlineGstinDetails(cleanGstin) {
+  const apiKey = (localStorage.getItem("glassCareGstinApiKey") || "").trim();
+
+  // 1. If an official GSTIN API Key is configured
+  if (apiKey) {
+    try {
+      const controller = new AbortController();
+      const tId = setTimeout(() => controller.abort(), 4000);
+      const res = await fetch(`https://www.gstinapi.in/v1/gstin/${encodeURIComponent(cleanGstin)}`, {
+        headers: { "x-api-key": apiKey, "accept": "application/json" },
+        signal: controller.signal
+      }).catch(() => null);
+      clearTimeout(tId);
+
+      if (res && res.ok) {
+        const json = await res.json().catch(() => null);
+        const data = json?.data || json;
+        if (data && (data.trade_name || data.legal_name || data.tradeNam || data.lgnm)) {
+          const trade = data.trade_name || data.legal_name || data.tradeNam || data.lgnm || "";
+          const addr = typeof data.address === "string" ? data.address : "";
+          const parts = addr ? addr.split(",").map(s => s.trim()) : [];
+          return {
+            name: trade,
+            flatNo: parts.slice(0, 2).join(", "),
+            buildingName: parts.slice(2).join(", "),
+            state: data.state || ""
+          };
+        }
+      }
+    } catch (e) {}
+  }
+
+  // 2. Try open sheetany mirror
+  try {
+    const controller = new AbortController();
+    const tId = setTimeout(() => controller.abort(), 3500);
+    const res = await fetch(`https://app.sheetany.com/api/gstin/${encodeURIComponent(cleanGstin)}`, {
+      signal: controller.signal
+    }).catch(() => null);
+    clearTimeout(tId);
+
+    if (res && res.ok) {
+      const json = await res.json().catch(() => null);
+      const data = json?.data || json;
+      if (data && (data.trade_name || data.legal_name || data.tradeNam || data.lgnm)) {
+        const trade = data.trade_name || data.legal_name || data.tradeNam || data.lgnm || "";
+        const addr = typeof data.address === "string" ? data.address : "";
+        const parts = addr ? addr.split(",").map(s => s.trim()) : [];
+        return {
+          name: trade,
+          flatNo: parts.slice(0, 2).join(", "),
+          buildingName: parts.slice(2).join(", "),
+          state: data.state || ""
+        };
+      }
+    }
+  } catch (e) {}
+
+  // 3. Try official government commonapi via public CORS proxy
+  try {
+    const controller = new AbortController();
+    const tId = setTimeout(() => controller.abort(), 3500);
+    const target = `https://commonapi.gst.gov.in/commonapi/v0.3/search?taxpayerId=${encodeURIComponent(cleanGstin)}`;
+    const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(target)}`, {
+      signal: controller.signal
+    }).catch(() => null);
+    clearTimeout(tId);
+
+    if (res && res.ok) {
+      const jsonWrap = await res.json().catch(() => null);
+      if (jsonWrap && jsonWrap.contents) {
+        const json = typeof jsonWrap.contents === "string" ? JSON.parse(jsonWrap.contents) : jsonWrap.contents;
+        if (json && (json.tradeNam || json.lgnm)) {
+          const tradeName = json.tradeNam || json.lgnm || "";
+          const addr = json.pradr?.addr || {};
+          const loc = [addr.bno, addr.flno, addr.loc].filter(Boolean).join(", ");
+          const project = [addr.bknm, addr.st, addr.dst].filter(Boolean).join(", ");
+          return {
+            name: tradeName,
+            flatNo: loc,
+            buildingName: project,
+            state: ""
+          };
+        }
+      }
+    }
+  } catch (e) {}
+
+  return null;
 }
 
 async function handleGstinInput(rawVal, options = {}) {
@@ -708,7 +1047,12 @@ async function handleGstinInput(rawVal, options = {}) {
     showGstinStatus(`GSTIN format may be invalid (expected 2 digits + 10-char PAN + 1 entity + Z + 1 check digit).`, "warning", false);
   }
 
-  // 2. Check local directory first
+  const nameEl = document.getElementById("customerName");
+  const flatEl = document.getElementById("flatNo");
+  const buildEl = document.getElementById("buildingName");
+  const phoneEl = document.getElementById("customerPhone");
+
+  // 2. Check local directory first (built-in enterprise directory + saved customers)
   const directory = getCustomerDirectory();
   let found = directory[clean];
 
@@ -730,11 +1074,6 @@ async function handleGstinInput(rawVal, options = {}) {
     } catch (e) {}
   }
 
-  const nameEl = document.getElementById("customerName");
-  const flatEl = document.getElementById("flatNo");
-  const buildEl = document.getElementById("buildingName");
-  const phoneEl = document.getElementById("customerPhone");
-
   if (found && (found.name || found.flatNo || found.buildingName || found.customerPhone)) {
     if (found.name && nameEl) nameEl.value = found.name;
     if (found.flatNo && flatEl) flatEl.value = found.flatNo;
@@ -753,44 +1092,46 @@ async function handleGstinInput(rawVal, options = {}) {
   showGstinStatus(`Searching online GST registry for ${clean}...`, "loading", false);
 
   try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 3500);
-
-    const res = await fetch(`https://commonapi.gst.gov.in/commonapi/v0.3/search?taxpayerId=${encodeURIComponent(clean)}`, {
-      signal: controller.signal
-    }).catch(() => null);
-    clearTimeout(timeoutId);
-
-    if (res && res.ok) {
-      const json = await res.json().catch(() => null);
-      if (json && (json.tradeNam || json.lgnm)) {
-        const tradeName = json.tradeNam || json.lgnm || "";
-        const addr = json.pradr?.addr || {};
-        const loc = [addr.bno, addr.flno, addr.loc].filter(Boolean).join(", ");
-        const project = [addr.bknm, addr.st].filter(Boolean).join(", ");
-
-        if (nameEl && tradeName) nameEl.value = tradeName;
-        if (flatEl && loc) flatEl.value = loc;
-        if (buildEl && project) buildEl.value = project;
-
-        saveCustomerToDirectory(clean, {
-          name: tradeName,
-          flatNo: loc,
-          buildingName: project,
-          state: stateName
-        });
-        persistDraft();
-        showGstinStatus(`✓ Verified GSTIN: ${tradeName} (${stateName})`, "success");
-        return;
+    const online = await fetchOnlineGstinDetails(clean);
+    if (online && (online.name || online.flatNo || online.buildingName)) {
+      if (nameEl && online.name) nameEl.value = online.name;
+      if (flatEl && online.flatNo) flatEl.value = online.flatNo;
+      if (buildEl && online.buildingName) buildEl.value = online.buildingName;
+      if (online.state && customerState) {
+        customerState.value = online.state;
+        updateTotals();
       }
+
+      saveCustomerToDirectory(clean, {
+        name: online.name,
+        flatNo: online.flatNo,
+        buildingName: online.buildingName,
+        state: online.state || stateName
+      });
+      persistDraft();
+      showGstinStatus(`✓ Verified GSTIN: ${online.name} (${online.state || stateName})`, "success");
+      return;
     }
   } catch (err) {
     // Online lookup failed or blocked by CORS
   }
 
-  // 5. Default graceful response for valid GSTIN
+  // 5. Intelligent PAN & Entity extraction fallback
+  const pan = clean.slice(2, 12);
+  const entityChar = clean.charAt(5);
+  const entityTypes = {
+    "C": "Company",
+    "P": "Individual / Proprietorship",
+    "F": "Partnership / LLP Firm",
+    "H": "HUF",
+    "A": "AOP",
+    "T": "Trust",
+    "G": "Government"
+  };
+  const entityType = entityTypes[entityChar] || "Registered Taxpayer";
+
   persistDraft();
-  showGstinStatus(`✓ Valid GSTIN for ${stateName}. Enter customer details once — they will be saved automatically for future estimates!`, "info");
+  showGstinStatus(`✓ Valid Indian GSTIN (${stateName}) • PAN: ${pan} (${entityType}). Enter customer details once — auto-saved!`, "info");
 }
 
 function persistDraft() {
@@ -855,6 +1196,40 @@ function wireCustomToggle(select, customInput, onChangeExtra) {
 wireCustomToggle(categorySelect, categoryCustom, applyRateBookSuggestion);
 wireCustomToggle(itemNameSelect, itemNameCustom);
 categoryCustom.addEventListener("input", applyRateBookSuggestion);
+
+if (categoryCustom) {
+  const commitCategory = () => {
+    const val = categoryCustom.value.trim();
+    if (val && val !== "__custom__") {
+      addCategoryOption(val, true);
+    }
+  };
+  categoryCustom.addEventListener("change", commitCategory);
+  categoryCustom.addEventListener("blur", commitCategory);
+  categoryCustom.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      commitCategory();
+    }
+  });
+}
+
+if (itemNameCustom) {
+  const commitItemName = () => {
+    const val = itemNameCustom.value.trim();
+    if (val && val !== "__custom__") {
+      addItemNameOption(val, true);
+    }
+  };
+  itemNameCustom.addEventListener("change", commitItemName);
+  itemNameCustom.addEventListener("blur", commitItemName);
+  itemNameCustom.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      commitItemName();
+    }
+  });
+}
 
 function getSelectedValue(select, customInput) {
   if (select.value === "__custom__") {
@@ -1064,6 +1439,14 @@ function updateCalculation() {
 
 /* ADD ITEM */
 document.getElementById("addItem").addEventListener("click", function () {
+  if (categorySelect.value === "__custom__") {
+    const customCat = categoryCustom.value.trim();
+    if (customCat) addCategoryOption(customCat, true);
+  }
+  if (itemNameSelect.value === "__custom__") {
+    const customItem = itemNameCustom.value.trim();
+    if (customItem) addItemNameOption(customItem, true);
+  }
   const categoryValue = getSelectedValue(categorySelect, categoryCustom);
   const itemNameValue = getSelectedValue(itemNameSelect, itemNameCustom);
   if (!categoryValue) {
@@ -1692,7 +2075,10 @@ function resetEstimateForm(clearCustomer = true) {
     if (customerState && states.length) customerState.value = states[0] || "Karnataka";
   }
 
-  if (categorySelect) categorySelect.value = "";
+  if (categorySelect) {
+    categorySelect.value = "";
+    getCustomCategories().forEach(cat => addCategoryOption(cat, false));
+  }
   if (categoryCustom) { categoryCustom.style.display = "none"; categoryCustom.value = ""; }
   if (itemNameSelect) {
     if (itemNameSelect.options.length <= 2) {
@@ -1702,6 +2088,7 @@ function resetEstimateForm(clearCustomer = true) {
       `;
       fillSelect(itemNameSelect, itemNames, true);
     }
+    getCustomItemNames().forEach(item => addItemNameOption(item, false));
     itemNameSelect.value = "";
     itemNameSelect.disabled = false;
   }

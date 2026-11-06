@@ -1836,12 +1836,20 @@
   document.getElementById("companySettingsBtn")?.addEventListener("click", () => {
     if (settingsPanel) {
       settingsPanel.hidden = !settingsPanel.hidden;
+      const keyInput = document.getElementById("gstinApiKeySetting");
+      if (keyInput) {
+        keyInput.value = localStorage.getItem("glassCareGstinApiKey") || "";
+      }
       settingsPanel.scrollIntoView({ behavior: "smooth", block: "nearest" });
     }
   });
 
   document.getElementById("saveSettingsBtn")?.addEventListener("click", async () => {
     settings.terms = termsText?.value || DEFAULT_TERMS.join("\n");
+    const keyInput = document.getElementById("gstinApiKeySetting");
+    if (keyInput) {
+      localStorage.setItem("glassCareGstinApiKey", keyInput.value.trim());
+    }
     try {
       if (window.GlassCareStore?.user && window.GlassCareStore?.saveSettings) {
         await GlassCareStore.saveSettings(settings);
