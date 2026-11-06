@@ -1833,15 +1833,17 @@
     pdfModalBackdrop.addEventListener("click", closeModal);
   }
 
+  const DEFAULT_GSTIN_BACKEND_PROXY = "https://spots-generations-ddr-facilities.trycloudflare.com/api/gstin";
+
   document.getElementById("companySettingsBtn")?.addEventListener("click", () => {
     if (settingsPanel) {
       settingsPanel.hidden = !settingsPanel.hidden;
       const keyInput = document.getElementById("gstinApiKeySetting");
       if (keyInput) keyInput.value = localStorage.getItem("glassCareGstinApiKey") || "";
       const urlInput = document.getElementById("gstinBackendUrlSetting");
-      if (urlInput) urlInput.value = localStorage.getItem("glassCareGstinBackendUrl") || "";
+      if (urlInput) urlInput.value = localStorage.getItem("glassCareGstinBackendUrl") || DEFAULT_GSTIN_BACKEND_PROXY;
       const providerInput = document.getElementById("gstinProviderSetting");
-      if (providerInput) providerInput.value = localStorage.getItem("glassCareGstinProvider") || "auto";
+      if (providerInput) providerInput.value = localStorage.getItem("glassCareGstinProvider") || "gstinportal";
       settingsPanel.scrollIntoView({ behavior: "smooth", block: "nearest" });
     }
   });

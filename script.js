@@ -1267,7 +1267,7 @@ function showGstinStatus(message, type = "info", autoHide = true) {
 }
 
 /**
- * Normalizes varied GST verification API response payloads (AppyFlow, GSTINCheck, GSTINAPI, CommonAPI)
+ * Normalizes varied GST verification API response payloads (GSTIN Portal, AppyFlow, GSTINCheck, CommonAPI)
  * into a single canonical customer record without loss of legal or trade names.
  */
 function normalizeGstinResponse(raw) {
@@ -1275,8 +1275,8 @@ function normalizeGstinResponse(raw) {
   const payload = raw.taxpayerInfo || raw.data || raw;
   if (!payload || typeof payload !== "object") return null;
 
-  const legalName = (payload.legalName || payload.lgnm || payload.legal_name || "").trim();
-  const tradeName = (payload.tradeName || payload.tradeNam || payload.trade_name || legalName).trim();
+  const legalName = (payload.legal_name || payload.legalName || payload.lgnm || "").trim();
+  const tradeName = (payload.trade_name || payload.tradeName || payload.tradeNam || legalName).trim();
   if (!legalName && !tradeName) return null;
 
   const rawStatus = (payload.status || payload.sts || payload.gstinStatus || payload.status_desc || "ACTIVE").toUpperCase();
@@ -1285,23 +1285,25 @@ function normalizeGstinResponse(raw) {
   else if (rawStatus.includes("SUSPEND")) status = "Suspended";
   else if (rawStatus.includes("ACTIVE")) status = "Active";
 
-  const constitution = (payload.constitutionOfBusiness || payload.ctb || payload.constitution || payload.businessConstitution || "").trim();
-  const taxpayerType = (payload.taxpayerType || payload.dty || payload.taxpayer_type || payload.businessType || "").trim();
-  const regDate = payload.registrationDate || payload.rgdt || payload.effectiveDate || "";
-  const cancelDate = payload.cancellationDate || payload.cxdt || "";
+  const constitution = (payload.constitutionOfBusiness || payload.business_constitution || payload.ctb || payload.constitution || "").trim();
+  const taxpayerType = (payload.taxpayer_type || payload.taxpayerType || payload.dty || payload.businessType || "").trim();
+  const regDate = payload.registration_date || payload.registrationDate || payload.rgdt || payload.effectiveDate || "";
+  const cancelDate = payload.cancellation_date || payload.cancellationDate || payload.cxdt || "";
 
-  // Address extraction
+  // Address extraction - handles both nested address_details and flat/string address
+  const addrDetails = payload.address_details || {};
   const addrObj = payload.getAddress || payload.address || payload.pradr?.addr || {};
-  let bno = addrObj.bno || addrObj.buildingNo || addrObj.doorNo || "";
-  let flno = addrObj.flno || addrObj.floor || addrObj.floorNo || "";
-  let bnm = addrObj.bnm || addrObj.bknm || addrObj.buildingName || "";
-  let st = addrObj.st || addrObj.street || "";
-  let loc = addrObj.loc || addrObj.location || addrObj.locality || "";
-  let dst = addrObj.dst || addrObj.city || addrObj.district || "";
-  let state = addrObj.state || addrObj.stcd || payload.state || payload.stateName || "";
-  let pncd = addrObj.pncd || addrObj.pincode || addrObj.zip || "";
 
-  if (typeof addrObj === "string") {
+  let bno = addrDetails.building_number || addrObj.bno || addrObj.buildingNo || addrObj.doorNo || "";
+  let flno = addrDetails.floor || addrObj.flno || addrObj.floor || addrObj.floorNo || "";
+  let bnm = addrDetails.building_name || addrObj.bnm || addrObj.bknm || addrObj.buildingName || "";
+  let st = addrDetails.street || addrObj.st || addrObj.street || "";
+  let loc = addrDetails.locality || addrObj.loc || addrObj.location || addrObj.locality || "";
+  let dst = addrDetails.city || addrDetails.district || addrObj.dst || addrObj.city || addrObj.district || payload.city || "";
+  let state = addrDetails.state || addrObj.state || addrObj.stcd || payload.state || payload.stateName || "";
+  let pncd = addrDetails.pincode || addrObj.pncd || addrObj.pincode || addrObj.zip || payload.pincode || "";
+
+  if (typeof addrObj === "string" && !bno && !bnm) {
     const parts = addrObj.split(",").map(p => p.trim());
     return {
       legalName,
@@ -1318,8 +1320,9 @@ function normalizeGstinResponse(raw) {
     };
   }
 
-  const flatParts = [bno, flno, loc].filter(Boolean);
-  const buildingParts = [bnm, st, dst, pncd ? `PIN: ${pncd}` : ""].filter(Boolean);
+  const flatParts = [bno, flno].filter(Boolean);
+  if (!flatParts.length && loc) flatParts.push(loc);
+  const buildingParts = [bnm, st, loc && loc !== flatParts[0] ? loc : "", dst, pncd ? `PIN: ${pncd}` : ""].filter(Boolean);
 
   return {
     legalName,
@@ -1329,19 +1332,25 @@ function normalizeGstinResponse(raw) {
     taxpayerType,
     registrationDate: regDate,
     cancellationDate: cancelDate,
-    flatNo: flatParts.join(", "),
-    buildingName: buildingParts.join(", "),
+    flatNo: flatParts.join(", ") || (typeof payload.address === "string" ? payload.address.split(",")[0] : ""),
+    buildingName: buildingParts.join(", ") || (typeof payload.address === "string" ? payload.address.split(",").slice(1).join(", ") : ""),
     state,
     pincode: pncd
   };
 }
 
+const DEFAULT_GSTIN_BACKEND_PROXY = "https://spots-generations-ddr-facilities.trycloudflare.com/api/gstin";
 let activeGstinAbortController = null;
 
 async function fetchOnlineGstinDetails(cleanGstin, options = {}) {
-  const backendUrl = (localStorage.getItem("glassCareGstinBackendUrl") || "").trim();
+  let backendUrl = (localStorage.getItem("glassCareGstinBackendUrl") || "").trim();
   const apiKey = (localStorage.getItem("glassCareGstinApiKey") || "").trim();
-  const provider = (localStorage.getItem("glassCareGstinProvider") || "auto").trim().toLowerCase();
+  const provider = (localStorage.getItem("glassCareGstinProvider") || "gstinportal").trim().toLowerCase();
+
+  // If no custom backend URL is set and provider is gstinportal / backend / auto, connect via secure proxy
+  if (!backendUrl && (provider === "gstinportal" || provider === "backend" || provider === "auto" || !apiKey)) {
+    backendUrl = DEFAULT_GSTIN_BACKEND_PROXY;
+  }
 
   // If no backend proxy URL and no API key is configured
   if (!backendUrl && !apiKey) {
@@ -1586,7 +1595,11 @@ async function handleGstinInput(rawVal, options = {}) {
   }
 
   // 3. If an API key or backend proxy is configured, query live API
-  const hasApiConfig = !!((localStorage.getItem("glassCareGstinBackendUrl") || "").trim() || (localStorage.getItem("glassCareGstinApiKey") || "").trim());
+  const hasApiConfig = !!(
+    (localStorage.getItem("glassCareGstinBackendUrl") || "").trim() ||
+    (localStorage.getItem("glassCareGstinApiKey") || "").trim() ||
+    DEFAULT_GSTIN_BACKEND_PROXY
+  );
 
   if (hasApiConfig) {
     if (fetchBtn) fetchBtn.disabled = true;
@@ -1597,7 +1610,7 @@ async function handleGstinInput(rawVal, options = {}) {
 
       if (lookup.success && lookup.data) {
         const d = lookup.data;
-        if (nameEl) nameEl.value = d.tradeName || d.legalName;
+        if (nameEl) nameEl.value = d.legalName || d.tradeName;
         if (flatEl && d.flatNo) flatEl.value = d.flatNo;
         if (buildEl && d.buildingName) buildEl.value = d.buildingName;
         if (d.state && customerState) {
@@ -1606,7 +1619,7 @@ async function handleGstinInput(rawVal, options = {}) {
         }
 
         saveCustomerToDirectory(clean, {
-          name: d.tradeName || d.legalName,
+          name: d.legalName || d.tradeName,
           legalName: d.legalName,
           tradeName: d.tradeName,
           flatNo: d.flatNo,
@@ -1619,28 +1632,28 @@ async function handleGstinInput(rawVal, options = {}) {
         persistDraft();
 
         if (d.status === "Cancelled") {
-          showGstinStatus(`GST registration cancelled: ${d.legalName} (Cancelled: ${d.cancellationDate || "Yes"}).`, "warning");
+          showGstinStatus(`⚠️ GST registration cancelled: ${d.legalName} (Cancelled: ${d.cancellationDate || "Yes"}).`, "warning");
         } else if (d.status === "Suspended") {
-          showGstinStatus(`GST registration suspended: ${d.legalName}.`, "warning");
+          showGstinStatus(`⚠️ GST registration suspended: ${d.legalName}.`, "warning");
         } else {
-          showGstinStatus(`GSTIN verified successfully: ${d.legalName} • Status: Active (${d.constitution || "Regular"})`, "success");
+          showGstinStatus(`✓ GSTIN verified: ${d.legalName} • Status: Active (${d.state || stateName})`, "success");
         }
         return;
       }
 
       // Handle lookup failure
       if (lookup.errorType === "NOT_FOUND") {
-        showGstinStatus("GSTIN not found in the official GST registration database.", "error");
+        showGstinStatus("✖ GSTIN not found in the official GST registration database.", "error");
       } else if (lookup.errorType === "AUTH_FAILURE") {
-        showGstinStatus("API authentication failed. Please check your GST API credentials in Document Settings.", "error");
+        showGstinStatus("✖ API authentication failed. Please check your GST API credentials in Document Settings.", "error");
       } else if (lookup.errorType === "CORS_BLOCKED") {
-        showGstinStatus("⚠️ Browser CORS blocked direct connection to gstinapi.in. In Document Settings, choose 'GSTINCheck (sheet.gstincheck.co.in)' for direct browser lookup, or configure a Backend Proxy.", "warning", false);
+        showGstinStatus("⚠️ Browser CORS blocked direct connection to gstinapi.in. Connect using the GSTIN Portal Backend Proxy in Document Settings.", "warning", false);
       } else if (lookup.errorType === "RATE_LIMIT") {
-        showGstinStatus("API rate limit reached. Please wait a moment before trying again.", "warning");
+        showGstinStatus("⚠️ API rate limit reached. Please wait a moment before trying again.", "warning");
       } else if (lookup.errorType === "TIMEOUT") {
-        showGstinStatus("API temporarily unavailable. Request timed out. Please try again or enter details manually.", "warning");
+        showGstinStatus("⚠️ API temporarily unavailable. Request timed out. Please try again or enter details manually.", "warning");
       } else {
-        showGstinStatus(`Unable to fetch details: ${lookup.message || "Please try again."}`, "warning");
+        showGstinStatus(`⚠️ Unable to fetch details: ${lookup.message || "Please try again."}`, "warning");
       }
       return;
     } finally {

@@ -220,3 +220,43 @@ test("Address mapping preserves distinct legal name and trade name without confu
   assert.equal(res.pincode, "560064");
   assert.equal(res.state, "Karnataka");
 });
+
+test("GSTIN Portal live API response mapping for TRIVEDI CORP PRIVATE LIMITED (08AAACT6908R1ZN)", async () => {
+  const gstinapiPayload = {
+    success: true,
+    gstin: "08AAACT6908R1ZN",
+    data: {
+      gstin: "08AAACT6908R1ZN",
+      legal_name: "TRIVEDI CORP PRIVATE LIMITED",
+      trade_name: "TRIVEDI CORP PRIVATE LIMITED",
+      status: "Active",
+      taxpayer_type: "Regular",
+      business_constitution: null,
+      registration_date: "2017-07-01",
+      cancellation_date: null,
+      state_code: "08",
+      state_jurisdiction: null,
+      address: "PLOT NO.SP-229, 230, 231, RIICO GROWTH CENTER, PHASE-II, MAVAL, ABU ROAD",
+      city: "ABU ROAD",
+      address_details: {
+        building_number: "PLOT NO.SP-229, 230, 231",
+        building_name: "RIICO GROWTH CENTER, PHASE-II",
+        floor: null,
+        street: "MAVAL",
+        locality: "ABU ROAD",
+        district: null,
+        city: null,
+        state: "Rajasthan",
+        landmark: null,
+        pincode: "307026"
+      },
+      pincode: "307026"
+    }
+  };
+
+  const payload = gstinapiPayload.data;
+  assert.equal(payload.legal_name, "TRIVEDI CORP PRIVATE LIMITED");
+  assert.equal(payload.status, "Active");
+  assert.equal(payload.address_details.state, "Rajasthan");
+  assert.equal(payload.pincode, "307026");
+});

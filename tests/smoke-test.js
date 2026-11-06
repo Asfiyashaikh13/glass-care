@@ -423,6 +423,26 @@ async function run() {
     assert.strictEqual(fetchedState, "Haryana");
     console.log("GSTIN auto-fetch verified for AIS Glass (06AAACA0741M1ZX)!");
 
+    // Test Live GSTIN Portal Backend Proxy with 08AAACT6908R1ZN (TRIVEDI CORP PRIVATE LIMITED)
+    await page.evaluate(() => {
+      localStorage.setItem("glassCareGstinBackendUrl", "http://localhost:3000/api/gstin");
+      localStorage.setItem("glassCareGstinProvider", "gstinportal");
+    });
+
+    await page.locator("#customerGstin").fill("08AAACT6908R1ZN");
+    await page.locator("#fetchGstinBtn").click();
+    await page.waitForTimeout(1000);
+
+    fetchedName = await page.locator("#customerName").inputValue();
+    fetchedFlat = await page.locator("#flatNo").inputValue();
+    fetchedBuilding = await page.locator("#buildingName").inputValue();
+    fetchedState = await page.locator("#customerState").inputValue();
+    console.log("Auto-fetched for 08AAACT6908R1ZN (TRIVEDI CORP PRIVATE LIMITED):", { fetchedName, fetchedFlat, fetchedBuilding, fetchedState });
+    assert.ok(fetchedName.includes("TRIVEDI CORP PRIVATE LIMITED"), "Customer name should be TRIVEDI CORP PRIVATE LIMITED");
+    assert.ok(fetchedState.includes("Rajasthan"), "Customer state should be Rajasthan");
+    assert.ok(fetchedBuilding.includes("307026") || fetchedBuilding.includes("RIICO") || fetchedFlat.includes("SP-229"), "Address should contain PIN 307026 or RIICO");
+    console.log("Live GSTIN Portal Backend Proxy verified for 08AAACT6908R1ZN (TRIVEDI CORP PRIVATE LIMITED)!");
+
     console.log("All Playwright browser smoke test assertions PASSED!");
   } finally {
     if (browser) await browser.close();
