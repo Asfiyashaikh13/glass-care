@@ -234,12 +234,16 @@ const { spawn } = require("node:child_process");
 let currentPublicUrl = "";
 
 function startTunnel() {
-  const binPath = "/home/asfiya/.local/bin/cloudflared";
-  if (!fs.existsSync(binPath)) {
-    console.log("cloudflared binary not found at", binPath);
-    return;
+  const binCandidates = [
+    path.join(__dirname, "bin", "cloudflared"),
+    "/home/asfiya/.local/bin/cloudflared",
+    "cloudflared"
+  ];
+  let binPath = binCandidates.find(p => fs.existsSync(p));
+  if (!binPath) {
+    binPath = "cloudflared";
   }
-  console.log("Starting Cloudflare HTTPS tunnel for port", PORT, "...");
+  console.log("Starting Cloudflare HTTPS tunnel for port", PORT, "using binary:", binPath);
   const tunnel = spawn(binPath, ["tunnel", "--url", `http://127.0.0.1:${PORT}`]);
 
   tunnel.stderr.on("data", (chunk) => {

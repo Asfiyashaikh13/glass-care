@@ -443,6 +443,39 @@ async function run() {
     assert.ok(fetchedBuilding.includes("307026") || fetchedBuilding.includes("RIICO") || fetchedFlat.includes("SP-229"), "Address should contain PIN 307026 or RIICO");
     console.log("Live GSTIN Portal Backend Proxy verified for 08AAACT6908R1ZN (TRIVEDI CORP PRIVATE LIMITED)!");
 
+    // Test Item Description Box & 12*12*12/1728 Cubic Feet in Inches calculation
+    await page.locator("#dimensionUnit").selectOption("in");
+    await page.locator("#unitDisplay").selectOption("Cubic Ft");
+    await page.locator("#height").fill("12");
+    await page.locator("#width").fill("12");
+    await page.locator("#thickness").fill("12");
+    await page.locator("#quantity").fill("1");
+
+    // Click Edit Rate option in the description card to unlock rate input
+    await page.locator("#descEditRateBtn").click();
+    await page.waitForTimeout(100);
+    const rateIsReadonly = await page.locator("#rate").getAttribute("readonly");
+    assert.strictEqual(rateIsReadonly, null, "Clicking Edit Rate button must unlock rate input for editing");
+    console.log("Edit Rate button successfully unlocked rate input!");
+
+    await page.locator("#rate").fill("300");
+    await page.locator("#rate").dispatchEvent("input");
+    await page.locator("#discountPercent").fill("0");
+    await page.locator("#discountPercent").dispatchEvent("input");
+    await page.locator("#round3InchToggle").setChecked(false);
+    await page.waitForTimeout(300);
+
+    const descText = await page.locator("#itemDescription").inputValue();
+    const descQty = await page.locator("#descQtyDisplay").textContent();
+    const descRate = await page.locator("#descRateDisplay").textContent();
+    const descTotal = await page.locator("#descTotalAmountDisplay").textContent();
+
+    console.log("Generated Description Box content:", { descText, descQty, descRate, descTotal });
+    assert.ok(descText.includes("12") && descText.includes("1728") && descText.includes("CFT"), "Description must show 12*12*12 / 1728 CFT formula");
+    assert.ok(descQty.includes("1"), "Description meta bar must show Qty 1");
+    assert.ok(descRate.includes("300"), "Description meta bar must show Rate 300");
+    assert.ok(descTotal.includes("300"), "Description meta bar must show Total 300");
+
     console.log("All Playwright browser smoke test assertions PASSED!");
   } finally {
     if (browser) await browser.close();

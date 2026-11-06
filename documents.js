@@ -212,6 +212,7 @@
         id: item.id,
         category: item.category,
         itemName: item.itemName,
+        description: item.description || "",
         hsn: defaultHsn(item),
         unit: item.unit,
         height: Number(item.height) || 0,
@@ -448,6 +449,7 @@
           <td class="text-center">${index + 1}</td>
           <td class="item-desc-cell">
             <div class="item-title">${escapeHtml(descriptionTitle)}</div>
+            ${line.description ? `<div class="item-custom-desc" style="font-size: 11px; color: #475569; margin-top: 2px; font-style: italic;">${escapeHtml(line.description)}</div>` : ""}
             ${dimsBlock}
             ${pcsNote}
             ${measureNote}
@@ -468,6 +470,7 @@
           <td class="text-center">${index + 1}</td>
           <td class="item-desc-cell">
             <div class="item-title">${escapeHtml(descriptionTitle)}</div>
+            ${line.description ? `<div class="item-custom-desc" style="font-size: 11px; color: #475569; margin-top: 2px; font-style: italic;">${escapeHtml(line.description)}</div>` : ""}
             ${dimsBlock}
             ${pcsNote}
             ${measureNote}
@@ -517,6 +520,7 @@
         <td class="text-center">${index + 1}</td>
         <td class="item-desc-cell">
           <div class="item-title">${escapeHtml(descriptionTitle)}</div>
+          ${line.description ? `<div class="item-custom-desc" style="font-size: 11px; color: #475569; margin-top: 2px; font-style: italic;">${escapeHtml(line.description)}</div>` : ""}
           ${pcsNote}
           ${measureNote}
         </td>
@@ -574,6 +578,7 @@
           return `
             <div class="note-item">
               <div class="note-item-header">${idx + 1}. ${escapeHtml([item.category, item.itemName].filter(Boolean).join(" — "))}</div>
+              ${item.description ? `<div class="note-row" style="color: #475569; font-style: italic;"><b>Description:</b> ${escapeHtml(item.description)}</div>` : ""}
               <div class="note-row"><b>Dimensions:</b> ${escapeHtml(dimensionText(item))} &nbsp;·&nbsp; <b>Unit:</b> ${escapeHtml(item.unit)} &nbsp;·&nbsp; <b>Qty:</b> ${item.quantity} &nbsp;·&nbsp; <b>Measure:</b> ${escapeHtml(line.measureLabel)}</div>
               <div class="note-row"><b>Formula:</b> ${escapeHtml(line.explanation || `${line.formula} = ₹${formatRawNumber(line.grossAmount)}; Discount: ${line.discountPercent}% = −₹${formatRawNumber(line.discountAmount)}; Taxable: ₹${formatRawNumber(line.taxableAmount)}`)}</div>
               <div class="note-row"><b>Taxes:</b> ${taxLabel} &nbsp;·&nbsp; <b>Line Total:</b> ₹${formatRawNumber(line.taxableAmount + line.taxAmount)}</div>
@@ -1833,7 +1838,7 @@
     pdfModalBackdrop.addEventListener("click", closeModal);
   }
 
-  const DEFAULT_GSTIN_BACKEND_PROXY = "https://spots-generations-ddr-facilities.trycloudflare.com/api/gstin";
+  const DEFAULT_GSTIN_BACKEND_PROXY = "https://clarity-disposal-loud-detected.trycloudflare.com/api/gstin";
 
   document.getElementById("companySettingsBtn")?.addEventListener("click", () => {
     if (settingsPanel) {
