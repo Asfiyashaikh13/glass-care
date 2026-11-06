@@ -315,23 +315,62 @@
         stepFormula = `2 × (${enteredH} + ${enteredW} ${dimUnit}) ÷ 304.8 × ${quantity} → ${decMeasure.toFixed(3)} R.ft × ₹${rate}`;
       }
     } else if (basis === "Cubic Ft") {
-      if (hMm <= 0 || wMm <= 0 || dMm <= 0) errors.push("Length, width and thickness/depth in mm are required for Cubic Ft.");
-      // Universal formula: (billedHeightMm * billedWidthMm * billedDepthMm) / 28,316,846.592 * Qty
-      const decMeasure = new Decimal(billedHMm)
-        .times(new Decimal(billedWMm))
-        .times(new Decimal(billedDMm))
-        .dividedBy(new Decimal("28316846.592"))
-        .times(new Decimal(quantity));
+      if (hMm <= 0 || wMm <= 0 || dMm <= 0) errors.push("Length, width and thickness/depth are required for Cubic Ft.");
+      
+      let decMeasure;
+      const decQty = new Decimal(quantity);
+
+      if (dimUnit === "in") {
+        // Direct inch formula: (billedHIn * billedWIn * billedDIn) / 1728 * Qty (1728 is constant)
+        const hIn = round3Inch ? Math.ceil(enteredH / 3) * 3 : enteredH;
+        const wIn = round3Inch ? Math.ceil(enteredW / 3) * 3 : enteredW;
+        const dIn = round3Inch ? Math.ceil(enteredD / 3) * 3 : enteredD;
+
+        decMeasure = new Decimal(hIn)
+          .times(new Decimal(wIn))
+          .times(new Decimal(dIn))
+          .dividedBy(new Decimal(1728))
+          .times(decQty);
+
+        const hasRound = round3Inch && (hIn !== enteredH || wIn !== enteredW || dIn !== enteredD);
+        if (hasRound) {
+          stepFormula = `${enteredH}″ × ${enteredW}″ × ${enteredD}″ → rounded ${hIn}″ × ${wIn}″ × ${dIn}″ ÷ 1728 = ${decMeasure.toFixed(4)} cu ft × ₹${rate}`;
+        } else {
+          stepFormula = `${enteredH}″ × ${enteredW}″ × ${enteredD}″ ÷ 1728 = ${decMeasure.toFixed(4)} cu ft × ₹${rate}`;
+        }
+      } else if (dimUnit === "ft") {
+        const hFt = round3Inch ? Math.ceil((enteredH * 12) / 3) * 3 / 12 : enteredH;
+        const wFt = round3Inch ? Math.ceil((enteredW * 12) / 3) * 3 / 12 : enteredW;
+        const dFt = round3Inch ? Math.ceil((enteredD * 12) / 3) * 3 / 12 : enteredD;
+
+        decMeasure = new Decimal(hFt)
+          .times(new Decimal(wFt))
+          .times(new Decimal(dFt))
+          .times(decQty);
+
+        const hasRound = round3Inch && (hFt !== enteredH || wFt !== enteredW || dFt !== enteredD);
+        if (hasRound) {
+          stepFormula = `${enteredH} × ${enteredW} × ${enteredD} ft → rounded ${hFt} × ${wFt} × ${dFt} ft = ${decMeasure.toFixed(4)} cu ft × ₹${rate}`;
+        } else {
+          stepFormula = `${enteredH} × ${enteredW} × ${enteredD} ft = ${decMeasure.toFixed(4)} cu ft × ₹${rate}`;
+        }
+      } else {
+        decMeasure = new Decimal(billedHMm)
+          .times(new Decimal(billedWMm))
+          .times(new Decimal(billedDMm))
+          .dividedBy(new Decimal("28316846.592"))
+          .times(decQty);
+
+        const origText = `${enteredH} × ${enteredW} × ${enteredD} ${dimUnit}`;
+        if (round3Inch && (billedHMm !== hMm || billedWMm !== wMm || billedDMm !== dMm)) {
+          stepFormula = `${origText} → rounded ${billedHMm.toFixed(1)} × ${billedWMm.toFixed(1)} × ${billedDMm.toFixed(1)} mm ÷ 28,316,846.592 = ${decMeasure.toFixed(4)} cu ft × ₹${rate}`;
+        } else {
+          stepFormula = `${enteredH} × ${enteredW} × ${enteredD} mm ÷ 28,316,846.592 = ${decMeasure.toFixed(4)} cu ft × ₹${rate}`;
+        }
+      }
 
       measure = decMeasure.toNumber();
       measureLabel = `${decMeasure.toFixed(3)} Cubic Ft`;
-
-      const origText = `${enteredH} × ${enteredW} × ${enteredD} ${dimUnit}`;
-      if (round3Inch && (billedHMm !== hMm || billedWMm !== wMm || billedDMm !== dMm)) {
-        stepFormula = `${origText} → rounded ${billedHMm.toFixed(1)} × ${billedWMm.toFixed(1)} × ${billedDMm.toFixed(1)} mm → ${decMeasure.toFixed(4)} cu ft × ₹${rate}`;
-      } else {
-        stepFormula = `${origText} → ${decMeasure.toFixed(4)} cu ft × ₹${rate}`;
-      }
     } else {
       // Per Piece
       measure = quantity;

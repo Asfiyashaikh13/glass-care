@@ -1897,18 +1897,36 @@ function updateCalculation() {
   } else if (calc.basis === "Cubic Ft") {
     if (areaCardLabel) areaCardLabel.textContent = "Cubic Feet";
     if (formulaNote) {
-      formulaNote.textContent = `ⓘ Cubic Ft: Volume = (Length × Width × Depth in mm) ÷ 28,316,846.592 × Qty (equal to in³ ÷ 1,728). Amount = Volume × Rate × (1 − Discount%/100).`;
+      if (dimUnit === "in") {
+        formulaNote.textContent = `ⓘ Cubic Ft (Inches): Volume = (Length in × Width in × Depth in) ÷ 1,728 × Qty (constant 1,728 cu.in = 1 cu.ft). Amount = Volume × Rate × (1 − Discount%/100).`;
+      } else if (dimUnit === "ft") {
+        formulaNote.textContent = `ⓘ Cubic Ft (Feet): Volume = Length ft × Width ft × Depth ft × Qty. Amount = Volume × Rate × (1 − Discount%/100).`;
+      } else {
+        formulaNote.textContent = `ⓘ Cubic Ft (mm): Volume = (Length × Width × Depth in mm) ÷ 28,316,846.592 × Qty (equal to in³ ÷ 1,728). Amount = Volume × Rate × (1 − Discount%/100).`;
+      }
     }
     const hasDims = calc.h > 0 && calc.w > 0 && calc.thickness > 0;
     originalSize.textContent = hasDims ? `${calc.h} × ${calc.w} × ${calc.thickness} ${dimUnit}` : `Length × width × depth required`;
     if (hasDims) {
-      if (calc.round3Inch && (calc.billedHeightMm !== calc.heightMm || calc.billedWidthMm !== calc.widthMm || calc.billedThicknessMm !== calc.thicknessMm)) {
-        roundedSize.textContent = `${calc.billedHeightMm.toFixed(1)} × ${calc.billedWidthMm.toFixed(1)} × ${calc.billedThicknessMm.toFixed(1)} mm (rounded)`;
+      if (dimUnit === "in") {
+        const hIn = calc.round3Inch ? Math.ceil(calc.h / 3) * 3 : calc.h;
+        const wIn = calc.round3Inch ? Math.ceil(calc.w / 3) * 3 : calc.w;
+        const dIn = calc.round3Inch ? Math.ceil(calc.thickness / 3) * 3 : calc.thickness;
+        const hasRound = calc.round3Inch && (hIn !== calc.h || wIn !== calc.w || dIn !== calc.thickness);
+        roundedSize.textContent = hasRound
+          ? `${hIn}″ × ${wIn}″ × ${dIn}″ (rounded)`
+          : `${calc.h}″ × ${calc.w}″ × ${calc.thickness}″`;
+      } else if (dimUnit === "ft") {
+        roundedSize.textContent = `${calc.h} × ${calc.w} × ${calc.thickness} ft`;
       } else {
-        roundedSize.textContent = `${calc.heightMm.toFixed(1)} × ${calc.widthMm.toFixed(1)} × ${calc.thicknessMm.toFixed(1)} mm`;
+        if (calc.round3Inch && (calc.billedHeightMm !== calc.heightMm || calc.billedWidthMm !== calc.widthMm || calc.billedThicknessMm !== calc.thicknessMm)) {
+          roundedSize.textContent = `${calc.billedHeightMm.toFixed(1)} × ${calc.billedWidthMm.toFixed(1)} × ${calc.billedThicknessMm.toFixed(1)} mm (rounded)`;
+        } else {
+          roundedSize.textContent = `${calc.heightMm.toFixed(1)} × ${calc.widthMm.toFixed(1)} × ${calc.thicknessMm.toFixed(1)} mm`;
+        }
       }
     } else {
-      roundedSize.textContent = `-- × -- × -- mm`;
+      roundedSize.textContent = `-- × -- × -- ${dimUnit}`;
     }
     areaDisplay.textContent = `${calc.volume.toFixed(3)} Cubic Ft`;
     document.getElementById("calculationHint").textContent = calc.round3Inch
