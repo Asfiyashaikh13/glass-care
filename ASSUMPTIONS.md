@@ -66,13 +66,24 @@
 - **Custom Additions to Dropdowns:** When a user picks `＋ Type new category...` or `＋ Type new item...` and types a new name, confirming (via Enter, field blur/change, adding item to estimate, or saving rate) automatically registers that custom entry into the `<select>` options.
 - **Permanent Local Storage:** Added custom categories are saved to `glassCareCustomCategories` and custom items to `glassCareCustomItemNames`. On every page load or form reset, they are restored and injected before the `__custom__` option so the dropdown master list grows permanently with the user's business.
 
-## 8. GSTIN Automatic Cloud & Registry Lookup
-- **Multi-tiered Lookup:** When a 15-character Indian GSTIN is entered:
-  1. Instant state code decoding (digits 1-2) updates `customerState` and taxes (CGST/SGST vs IGST).
-  2. Local directory and historical documents are checked (`glassCareCustomerDirectory`).
-  3. Real-world default directory of prominent glass & construction enterprises across India (Saint-Gobain, AIS, Gold Plus, Sisecam, Fenesta, L&T, Tata Projects, Prestige, Sobha, Brigade, Godrej, Infosys, Wipro, TCS, Reliance, Google, Amazon) auto-populates instantly.
-  4. Online lookup queries official/public gateways (supporting optional GSTIN API Key in Document Settings from `gstinapi.in`, or public mirror endpoints).
-  5. Fallback decodes PAN and Entity Type (Company, Proprietorship, Partnership/LLP) and prompts the user to enter company details once.
-  6. Any typed or updated customer details for a 15-character GSTIN are automatically synchronized to `glassCareCustomerDirectory` in `localStorage` for future instant lookups.
+## 8. GSTIN Verification & Registration Database Auto-Fill Architecture
+- **Official Mod-36 Luhn Checksum:** Every 15-character Indian GSTIN is strictly validated against the official GSTN Mod-36 checksum algorithm before any lookup:
+  - First 2 digits: State code (e.g., 29 for Karnataka, 27 for Maharashtra).
+  - Characters 3–12: 10-character alphanumeric PAN.
+  - Character 13: Entity number (`[1-9A-Z]`).
+  - Character 14: Default `Z`.
+  - Character 15: Official Mod-36 checksum digit calculated across positions 0–13 with alternating weights (1, 2) modulo 36.
+  - If the checksum fails, the user is immediately alerted and no unnecessary network requests are made.
+- **No Synthetic Fake Names:** Synthetic fallbacks (like `Proprietorship (PAN)` or `Karnataka Business Location`) and static company tables are eliminated. The system verifies actual records from the official database or user's historical saved documents.
+- **Provider & Backend Proxy Integration:**
+  - Supports configurable Backend Proxy URL (recommended for production to keep API keys secure on the server).
+  - Supports direct API providers (Appyflow, GSTINCheck, GSTINAPI) with client credentials stored securely in browser settings.
+  - Implements 400ms input debounce and in-flight request cancellation (`AbortController`) to avoid duplicate queries while typing.
+- **Standardized Field Mapping:**
+  - Extracts and separates Legal Business Name (`legalName`) and Trade Name (`tradeName`).
+  - Formats principal place of business into Door/Flat/Locality (`flatNo`) and Building/Street/District/PIN (`buildingName`).
+  - Detects and reports operational registration statuses: `Active`, `Cancelled` (with cancellation date), and `Suspended`.
+  - Automatically updates the state dropdown (`customerState`) and recalibrates CGST/SGST vs IGST split.
+
 
 
