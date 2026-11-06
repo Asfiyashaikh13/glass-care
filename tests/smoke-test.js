@@ -42,6 +42,7 @@ async function run() {
     });
 
     const page = await browser.newPage();
+    page.on("pageerror", err => console.log("PAGE ERROR:", err));
     await page.goto(`http://localhost:${port}/`);
     await page.waitForLoadState("networkidle");
 
@@ -64,7 +65,8 @@ async function run() {
 
     // 2. Switch dimension unit to "in"
     await dimUnitSelect.selectOption("in");
-    await page.waitForTimeout(100);
+    await dimUnitSelect.dispatchEvent("change");
+    await page.waitForTimeout(200);
 
     const heightTextIn = await heightLabel.textContent();
     console.log("Switched to 'in', height label:", heightTextIn);
@@ -198,50 +200,106 @@ async function run() {
     assert.ok(itemOptions.some(opt => opt.includes("Heavy Duty Glass Sliding Door Track")), "Custom item name must persist in dropdown after reload");
     console.log("Custom category & item name dropdown persistence verified!");
 
-    // 8. Test GSTIN auto-fetch without typing company details manually
-    await page.locator("#customerGstin").fill("29AACCB6672L1Z6");
-    await page.locator("#customerGstin").dispatchEvent("change");
-    await page.waitForTimeout(200);
+    // 8. Test GSTIN validation and live API mocking with Playwright route interception
+    // Set mock API Key in localStorage for testing
+    await page.evaluate(() => {
+      localStorage.setItem("glassCareGstinApiKey", "test_mock_api_key");
+      localStorage.setItem("glassCareGstinProvider", "auto");
+    });
+
+    // Intercept standard GSTIN API requests
+    await page.route("https://www.gstinapi.in/v1/gstin/**", async (route) => {
+      const url = route.request().url();
+      if (url.includes("29BNYPN6916L1ZU")) {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            data: {
+              legalName: "KHURSHEED ALAM SHAIKH",
+              tradeName: "Glass Care Enterprises",
+              status: "Active",
+              constitutionOfBusiness: "Proprietorship",
+              taxpayerType: "Regular",
+              address: {
+                buildingNo: "No. 122/1",
+                buildingName: "Kogilu Layout",
+                street: "Kogilu Main Road",
+                location: "Bellahalli Cross",
+                district: "Bengaluru Urban",
+                state: "Karnataka",
+                pincode: "560064"
+              }
+            }
+          })
+        });
+      } else if (url.includes("29AACCB6672L1Z6")) {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            data: {
+              legalName: "BSE LIMITED",
+              tradeName: "BSE Limited",
+              status: "Active",
+              constitutionOfBusiness: "Public Limited Company",
+              address: {
+                buildingNo: "No. 184",
+                buildingName: "Shree Raghavendra Complex",
+                street: "Link Road",
+                location: "Malleshwaram",
+                district: "Bengaluru",
+                state: "Karnataka",
+                pincode: "560003"
+              }
+            }
+          })
+        });
+      } else {
+        await route.fulfill({
+          status: 404,
+          contentType: "application/json",
+          body: JSON.stringify({ error: true, message: "GSTIN not found in the official GST database." })
+        });
+      }
+    });
+
+    // Test bad checksum
+    await page.locator("#customerGstin").fill("29BNYPN6916L1ZZ");
+    await page.locator("#fetchGstinBtn").click();
+    await page.waitForTimeout(100);
+    const badStatus = await page.locator("#gstinStatus").textContent();
+    assert.match(badStatus, /checksum verification failed/i);
+    console.log("Checksum validation correctly rejected 29BNYPN6916L1ZZ:", badStatus);
+
+    // Test valid Karnataka GSTIN auto-fetch from API
+    await page.locator("#customerGstin").fill("29BNYPN6916L1ZU");
+    await page.locator("#fetchGstinBtn").click();
+    await page.waitForTimeout(300);
 
     let fetchedName = await page.locator("#customerName").inputValue();
-    let fetchedPhone = await page.locator("#customerPhone").inputValue();
     let fetchedFlat = await page.locator("#flatNo").inputValue();
     let fetchedBuilding = await page.locator("#buildingName").inputValue();
     let fetchedState = await page.locator("#customerState").inputValue();
-    console.log("Auto-fetched from GSTIN 29AACCB6672L1Z6:", { fetchedName, fetchedPhone, fetchedFlat, fetchedBuilding, fetchedState });
-    assert.strictEqual(fetchedName, "BSE Limited");
-    assert.strictEqual(fetchedPhone, "080-23456789");
-    assert.ok(fetchedFlat.includes("Raghavendra Complex"), "Flat / Address should be populated");
+    console.log("Auto-fetched from API for 29BNYPN6916L1ZU:", { fetchedName, fetchedFlat, fetchedBuilding, fetchedState });
+    assert.strictEqual(fetchedName, "Glass Care Enterprises");
+    assert.ok(fetchedFlat.includes("122/1"), "Flat should contain door number");
+    assert.ok(fetchedBuilding.includes("Kogilu Layout"), "Building should contain Kogilu Layout");
     assert.strictEqual(fetchedState, "Karnataka");
-    console.log("GSTIN auto-fetch verified for 29AACCB6672L1Z6!");
+    console.log("GSTIN auto-fetch verified for 29BNYPN6916L1ZU via API!");
 
-    // Also test 29BNYPN6916L1ZU (Glass Care Enterprises)
-    await page.locator("#customerGstin").fill("29BNYPN6916L1ZU");
+    // Test BSE Limited
+    await page.locator("#customerGstin").fill("29AACCB6672L1Z6");
     await page.locator("#fetchGstinBtn").click();
-    await page.waitForTimeout(200);
+    await page.waitForTimeout(300);
 
     fetchedName = await page.locator("#customerName").inputValue();
-    fetchedPhone = await page.locator("#customerPhone").inputValue();
     fetchedFlat = await page.locator("#flatNo").inputValue();
     fetchedBuilding = await page.locator("#buildingName").inputValue();
-    console.log("Auto-fetched from GSTIN 29BNYPN6916L1ZU:", { fetchedName, fetchedPhone, fetchedFlat, fetchedBuilding });
-    assert.strictEqual(fetchedName, "Glass Care Enterprises");
-    assert.strictEqual(fetchedPhone, "9945988852");
-    assert.ok(fetchedFlat.includes("Kogilu Layout"), "Address should be Kogilu Layout");
-    console.log("GSTIN auto-fetch verified for 29BNYPN6916L1ZU (Glass Care Enterprises)!");
-
-    // Test 29AACI1681G1ZL (14-char IOCL input auto-resolving to 29AAACI1681G1ZL Indian Oil Corporation Limited)
-    await page.locator("#customerGstin").fill("29AACI1681G1ZL");
-    await page.locator("#customerGstin").dispatchEvent("input");
-    await page.waitForTimeout(200);
-
-    fetchedName = await page.locator("#customerName").inputValue();
-    fetchedPhone = await page.locator("#customerPhone").inputValue();
-    const correctedGstin = await page.locator("#customerGstin").inputValue();
-    console.log("Auto-fetched from GSTIN 29AACI1681G1ZL:", { fetchedName, fetchedPhone, correctedGstin });
-    assert.strictEqual(fetchedName, "Indian Oil Corporation Limited");
-    assert.strictEqual(correctedGstin, "29AAACI1681G1ZL");
-    console.log("GSTIN auto-fetch verified for IOCL (29AAACI1681G1ZL)!");
+    assert.strictEqual(fetchedName, "BSE Limited");
+    assert.ok(fetchedFlat.includes("184"), "Flat should contain 184");
+    assert.ok(fetchedBuilding.includes("Raghavendra Complex"), "Building should contain complex name");
+    console.log("GSTIN auto-fetch verified for 29AACCB6672L1Z6 via API!");
 
     console.log("All Playwright browser smoke test assertions PASSED!");
   } finally {

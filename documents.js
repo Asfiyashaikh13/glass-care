@@ -1837,9 +1837,11 @@
     if (settingsPanel) {
       settingsPanel.hidden = !settingsPanel.hidden;
       const keyInput = document.getElementById("gstinApiKeySetting");
-      if (keyInput) {
-        keyInput.value = localStorage.getItem("glassCareGstinApiKey") || "";
-      }
+      if (keyInput) keyInput.value = localStorage.getItem("glassCareGstinApiKey") || "";
+      const urlInput = document.getElementById("gstinBackendUrlSetting");
+      if (urlInput) urlInput.value = localStorage.getItem("glassCareGstinBackendUrl") || "";
+      const providerInput = document.getElementById("gstinProviderSetting");
+      if (providerInput) providerInput.value = localStorage.getItem("glassCareGstinProvider") || "auto";
       settingsPanel.scrollIntoView({ behavior: "smooth", block: "nearest" });
     }
   });
@@ -1849,6 +1851,17 @@
     const keyInput = document.getElementById("gstinApiKeySetting");
     if (keyInput) {
       localStorage.setItem("glassCareGstinApiKey", keyInput.value.trim());
+      settings.gstinApiKey = keyInput.value.trim();
+    }
+    const urlInput = document.getElementById("gstinBackendUrlSetting");
+    if (urlInput) {
+      localStorage.setItem("glassCareGstinBackendUrl", urlInput.value.trim());
+      settings.gstinBackendUrl = urlInput.value.trim();
+    }
+    const providerInput = document.getElementById("gstinProviderSetting");
+    if (providerInput) {
+      localStorage.setItem("glassCareGstinProvider", providerInput.value);
+      settings.gstinProvider = providerInput.value;
     }
     try {
       if (window.GlassCareStore?.user && window.GlassCareStore?.saveSettings) {

@@ -105,12 +105,34 @@
         <input type="checkbox" id="globalRound3InchSetting">
         <span>Default "Round size up to next 3 inches (76.2 mm)" for newly added items</span>
       </label>
-      <div style="display: flex; flex-direction: column; gap: 4px;">
-        <label for="gstinApiKeySetting" style="font-size: 13px; color: #334155; font-weight: 500;">
-          GSTIN Lookup API Key (Optional — for live automated lookup across India):
-        </label>
-        <input type="password" id="gstinApiKeySetting" placeholder="e.g. API key from gstinapi.in or custom provider" style="padding: 7px 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 12px; width: 100%; max-width: 440px;">
-        <small style="color: #64748b; font-size: 11px;">Optional: Enter a free key from <a href="https://www.gstinapi.in" target="_blank" rel="noopener" style="color: #2563eb; text-decoration: underline;">gstinapi.in</a> for direct, real-time GSTIN company &amp; address lookup.</small>
+      <div style="display: flex; flex-direction: column; gap: 8px; background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0;">
+        <div style="font-size: 13px; font-weight: 600; color: #1e293b;">GSTIN Live Verification &amp; Customer Auto-Fill</div>
+        
+        <div style="display: flex; flex-direction: column; gap: 3px;">
+          <label for="gstinProviderSetting" style="font-size: 12px; color: #475569; font-weight: 500;">Verification Provider:</label>
+          <select id="gstinProviderSetting" style="padding: 6px 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 12px; max-width: 440px; background: #fff;">
+            <option value="auto">Auto-Detect / Standard REST (gstinapi.in)</option>
+            <option value="backend">Secure Backend / Supabase Edge Function Proxy</option>
+            <option value="appyflow">Appyflow (appyflow.in)</option>
+            <option value="gstincheck">GSTINCheck (sheet.gstincheck.co.in)</option>
+          </select>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 3px;">
+          <label for="gstinBackendUrlSetting" style="font-size: 12px; color: #475569; font-weight: 500;">
+            Backend Proxy Endpoint URL (Recommended for security):
+          </label>
+          <input type="url" id="gstinBackendUrlSetting" placeholder="e.g. https://your-domain.com/api/gstin or Supabase Edge function" style="padding: 7px 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 12px; width: 100%; max-width: 440px;">
+          <small style="color: #64748b; font-size: 11px;">Keeps API credentials private on the server. Request sends <code>?gstin=&lt;GSTIN&gt;</code>.</small>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 3px;">
+          <label for="gstinApiKeySetting" style="font-size: 12px; color: #475569; font-weight: 500;">
+            Provider API Key / Secret:
+          </label>
+          <input type="password" id="gstinApiKeySetting" placeholder="e.g. Key from gstinapi.in, appyflow, or backend bearer token" style="padding: 7px 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 12px; width: 100%; max-width: 440px;">
+          <small style="color: #64748b; font-size: 11px;">Keys are stored in your secure browser session/settings and never committed to source code.</small>
+        </div>
       </div>
       <div style="display: flex; gap: 10px; align-items: center; margin-top: 4px;">
         <button type="button" class="secondary-action" id="saveSettingsBtn">Save settings</button>
@@ -589,7 +611,7 @@
 <script src="calc.js?v=glasscare-v8"></script>
 <script src="calculations.js?v=glasscare-v8"></script>
 <script src="html2pdf.bundle.min.js?v=glasscare-v8"></script>
-<script src="script.js?v=glasscare-v10-iocl"></script>
+<script src="script.js?v=glasscare-v11-gstin-real"></script>
 <script src="documents.js?v=glasscare-v8"></script>
 </body>
 </html>

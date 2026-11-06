@@ -180,12 +180,114 @@ const GST_STATE_CODE_MAP = {
   "38": "Ladakh"
 };
 
+/**
+ * Calculates the official 15th checksum character using the Luhn Mod-36 algorithm.
+ * @param {string} gstin14 - First 14 characters of the GSTIN.
+ * @returns {string|null} - 15th checksum character (0-9, A-Z) or null if invalid.
+ */
+function calculateGSTChecksum(gstin14) {
+  if (!gstin14 || typeof gstin14 !== "string" || gstin14.length < 14) return null;
+  const chars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  let total = 0;
+  const modulus = 36;
+  const s = gstin14.toUpperCase().slice(0, 14);
+
+  for (let i = 0; i < 14; i++) {
+    const char = s[i];
+    const weight = chars.indexOf(char);
+    if (weight === -1) return null;
+    const factor = (i % 2 === 0) ? 1 : 2;
+    const product = weight * factor;
+    const quotient = Math.floor(product / modulus);
+    const remainder = product % modulus;
+    total += (quotient + remainder);
+  }
+
+  let checkDigitIndex = (modulus - (total % modulus)) % modulus;
+  return chars[checkDigitIndex];
+}
+
+/**
+ * Strictly validates an Indian GSTIN: length, structure, state code, and Mod-36 checksum.
+ * @param {string} raw - The GSTIN string to validate.
+ * @returns {object} - { valid: boolean, clean?: string, stateCode?: string, stateName?: string, error?: string }
+ */
+function validateGstin(raw) {
+  if (!raw || typeof raw !== "string") {
+    return { valid: false, error: "GSTIN is empty." };
+  }
+  const clean = raw.trim().toUpperCase();
+  if (clean.length !== 15) {
+    return {
+      valid: false,
+      error: `GSTIN must be exactly 15 characters (entered ${clean.length}).`,
+      length: clean.length,
+      clean
+    };
+  }
+
+  // 1. Structure check: 2 digits + 5 letters PAN + 4 digits PAN + 1 letter PAN + 1 entity code + 'Z' + 1 checksum
+  const regex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
+  if (!regex.test(clean)) {
+    return {
+      valid: false,
+      error: "GSTIN format is invalid (expected 2 digits + 10-char PAN + 1 entity code + 'Z' + 1 checksum character).",
+      clean
+    };
+  }
+
+  // 2. State Code validation
+  const stateCode = clean.slice(0, 2);
+  const stateName = GST_STATE_CODE_MAP[stateCode] || null;
+  if (!stateName) {
+    return {
+      valid: false,
+      error: `Invalid GST state code '${stateCode}'.`,
+      stateCode,
+      clean
+    };
+  }
+
+  // 3. Official Mod-36 Checksum verification
+  const expectedCheck = calculateGSTChecksum(clean.slice(0, 14));
+  const actualCheck = clean[14];
+  if (expectedCheck !== actualCheck) {
+    return {
+      valid: false,
+      error: `GSTIN checksum verification failed (expected '${expectedCheck}', got '${actualCheck}').`,
+      expectedCheck,
+      actualCheck,
+      stateCode,
+      stateName,
+      clean
+    };
+  }
+
+  return {
+    valid: true,
+    clean,
+    stateCode,
+    stateName,
+    pan: clean.slice(2, 12),
+    entityCode: clean[12]
+  };
+}
+
 if (typeof window !== "undefined") {
   window.GST_STATE_CODE_MAP = GST_STATE_CODE_MAP;
   window.states = states;
+  window.calculateGSTChecksum = calculateGSTChecksum;
+  window.validateGstin = validateGstin;
 }
 
 if (typeof module !== "undefined" && module.exports) {
-  module.exports = { glassCategories, itemNames, states, GST_STATE_CODE_MAP };
+  module.exports = {
+    glassCategories,
+    itemNames,
+    states,
+    GST_STATE_CODE_MAP,
+    calculateGSTChecksum,
+    validateGstin
+  };
 }
 

@@ -675,55 +675,44 @@ function initialize() {
 
   const gstinField = document.getElementById("customerGstin");
   const fetchGstinBtn = document.getElementById("fetchGstinBtn");
+  let gstinDebounceTimer = null;
 
   if (gstinField) {
     if (savedDraft.customerGstin) {
       gstinField.value = savedDraft.customerGstin;
-      if (savedDraft.customerGstin.length === 15) {
-        setTimeout(() => {
-          handleGstinInput(savedDraft.customerGstin, { silent: true });
-        }, 50);
-      }
     }
     gstinField.addEventListener("input", (e) => {
-      handleGstinInput(e.target.value);
+      clearTimeout(gstinDebounceTimer);
+      const val = (e.target.value || "").trim().toUpperCase();
+      // If fewer than 15 characters, run instant state detection without calling API
+      if (val.length < 15) {
+        handleGstinInput(val, { skipApi: true });
+        return;
+      }
+      // Debounce 400ms on 15 chars to avoid duplicate calls while user is typing
+      gstinDebounceTimer = setTimeout(() => {
+        handleGstinInput(val);
+      }, 400);
     });
     gstinField.addEventListener("change", (e) => {
+      clearTimeout(gstinDebounceTimer);
       handleGstinInput(e.target.value);
     });
     gstinField.addEventListener("paste", () => {
+      clearTimeout(gstinDebounceTimer);
       setTimeout(() => handleGstinInput(gstinField.value), 50);
     });
   }
 
   if (fetchGstinBtn) {
     fetchGstinBtn.addEventListener("click", () => {
+      clearTimeout(gstinDebounceTimer);
       const val = (gstinField?.value || "").trim().toUpperCase();
       if (!val) {
         showGstinStatus("Please enter a 15-character Customer GSTIN to fetch details.", "warning");
         gstinField?.focus();
         return;
       }
-      if (val.length < 15 && !DEFAULT_CUSTOMER_DIRECTORY[val]) {
-        const remaining = 15 - val.length;
-        showGstinStatus(`GSTIN requires 15 characters (entered ${val.length} chars). Missing ${remaining} character${remaining > 1 ? "s" : ""}. Example: 29AAACI1681G1ZL`, "warning");
-        gstinField?.focus();
-        return;
-      }
-      try {
-        const raw = localStorage.getItem(GSTIN_DIRECTORY_KEY);
-        if (raw) {
-          const dir = JSON.parse(raw);
-          if (DEFAULT_CUSTOMER_DIRECTORY[val] || dir[val]?.name === "SHAIKH") {
-            delete dir[val];
-            localStorage.setItem(GSTIN_DIRECTORY_KEY, JSON.stringify(dir));
-          }
-        }
-      } catch (e) {}
-      ["customerName", "flatNo", "buildingName", "customerPhone"].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.value = "";
-      });
       handleGstinInput(val, { forceFetch: true });
     });
   }
@@ -1033,99 +1022,195 @@ function showGstinStatus(message, type = "info", autoHide = true) {
   }
 }
 
-async function fetchOnlineGstinDetails(cleanGstin) {
-  const apiKey = (localStorage.getItem("glassCareGstinApiKey") || "").trim();
+/**
+ * Normalizes varied GST verification API response payloads (AppyFlow, GSTINCheck, GSTINAPI, CommonAPI)
+ * into a single canonical customer record without loss of legal or trade names.
+ */
+function normalizeGstinResponse(raw) {
+  if (!raw || raw.error === true || raw.flag === false || raw.status_cd === "0") return null;
+  const payload = raw.taxpayerInfo || raw.data || raw;
+  if (!payload || typeof payload !== "object") return null;
 
-  // 1. If an official GSTIN API Key is configured
-  if (apiKey) {
-    try {
-      const controller = new AbortController();
-      const tId = setTimeout(() => controller.abort(), 4000);
-      const res = await fetch(`https://www.gstinapi.in/v1/gstin/${encodeURIComponent(cleanGstin)}`, {
-        headers: { "x-api-key": apiKey, "accept": "application/json" },
-        signal: controller.signal
-      }).catch(() => null);
-      clearTimeout(tId);
+  const legalName = (payload.legalName || payload.lgnm || payload.legal_name || "").trim();
+  const tradeName = (payload.tradeName || payload.tradeNam || payload.trade_name || legalName).trim();
+  if (!legalName && !tradeName) return null;
 
-      if (res && res.ok) {
-        const json = await res.json().catch(() => null);
-        const data = json?.data || json;
-        if (data && (data.trade_name || data.legal_name || data.tradeNam || data.lgnm)) {
-          const trade = data.trade_name || data.legal_name || data.tradeNam || data.lgnm || "";
-          const addr = typeof data.address === "string" ? data.address : "";
-          const parts = addr ? addr.split(",").map(s => s.trim()) : [];
-          return {
-            name: trade,
-            flatNo: parts.slice(0, 2).join(", "),
-            buildingName: parts.slice(2).join(", "),
-            state: data.state || ""
-          };
-        }
-      }
-    } catch (e) {}
+  const rawStatus = (payload.status || payload.sts || payload.gstinStatus || payload.status_desc || "ACTIVE").toUpperCase();
+  let status = "Active";
+  if (rawStatus.includes("CANCEL")) status = "Cancelled";
+  else if (rawStatus.includes("SUSPEND")) status = "Suspended";
+  else if (rawStatus.includes("ACTIVE")) status = "Active";
+
+  const constitution = (payload.constitutionOfBusiness || payload.ctb || payload.constitution || payload.businessConstitution || "").trim();
+  const taxpayerType = (payload.taxpayerType || payload.dty || payload.taxpayer_type || payload.businessType || "").trim();
+  const regDate = payload.registrationDate || payload.rgdt || payload.effectiveDate || "";
+  const cancelDate = payload.cancellationDate || payload.cxdt || "";
+
+  // Address extraction
+  const addrObj = payload.getAddress || payload.address || payload.pradr?.addr || {};
+  let bno = addrObj.bno || addrObj.buildingNo || addrObj.doorNo || "";
+  let flno = addrObj.flno || addrObj.floor || addrObj.floorNo || "";
+  let bnm = addrObj.bnm || addrObj.bknm || addrObj.buildingName || "";
+  let st = addrObj.st || addrObj.street || "";
+  let loc = addrObj.loc || addrObj.location || addrObj.locality || "";
+  let dst = addrObj.dst || addrObj.city || addrObj.district || "";
+  let state = addrObj.state || addrObj.stcd || payload.state || payload.stateName || "";
+  let pncd = addrObj.pncd || addrObj.pincode || addrObj.zip || "";
+
+  if (typeof addrObj === "string") {
+    const parts = addrObj.split(",").map(p => p.trim());
+    return {
+      legalName,
+      tradeName: tradeName || legalName,
+      status,
+      constitution,
+      taxpayerType,
+      registrationDate: regDate,
+      cancellationDate: cancelDate,
+      flatNo: parts.slice(0, 2).join(", "),
+      buildingName: parts.slice(2).join(", "),
+      state,
+      pincode: pncd
+    };
   }
 
-  // 2. Try open sheetany mirror
+  const flatParts = [bno, flno, loc].filter(Boolean);
+  const buildingParts = [bnm, st, dst, pncd ? `PIN: ${pncd}` : ""].filter(Boolean);
+
+  return {
+    legalName,
+    tradeName: tradeName || legalName,
+    status,
+    constitution,
+    taxpayerType,
+    registrationDate: regDate,
+    cancellationDate: cancelDate,
+    flatNo: flatParts.join(", "),
+    buildingName: buildingParts.join(", "),
+    state,
+    pincode: pncd
+  };
+}
+
+let activeGstinAbortController = null;
+
+async function fetchOnlineGstinDetails(cleanGstin, options = {}) {
+  const backendUrl = (localStorage.getItem("glassCareGstinBackendUrl") || "").trim();
+  const apiKey = (localStorage.getItem("glassCareGstinApiKey") || "").trim();
+  const provider = (localStorage.getItem("glassCareGstinProvider") || "auto").trim().toLowerCase();
+
+  // If no backend proxy URL and no API key is configured
+  if (!backendUrl && !apiKey) {
+    return {
+      success: false,
+      errorType: "NO_CONFIG",
+      message: "API key or Backend Proxy not configured. Configure your credentials in Document Settings."
+    };
+  }
+
+  if (activeGstinAbortController) {
+    activeGstinAbortController.abort();
+  }
+  activeGstinAbortController = new AbortController();
+  const timeoutMs = options.timeoutMs || 8000;
+  const timeoutId = setTimeout(() => {
+    if (activeGstinAbortController) activeGstinAbortController.abort();
+  }, timeoutMs);
+
   try {
-    const controller = new AbortController();
-    const tId = setTimeout(() => controller.abort(), 3500);
-    const res = await fetch(`https://app.sheetany.com/api/gstin/${encodeURIComponent(cleanGstin)}`, {
-      signal: controller.signal
-    }).catch(() => null);
-    clearTimeout(tId);
+    let res = null;
 
-    if (res && res.ok) {
-      const json = await res.json().catch(() => null);
-      const data = json?.data || json;
-      if (data && (data.trade_name || data.legal_name || data.tradeNam || data.lgnm)) {
-        const trade = data.trade_name || data.legal_name || data.tradeNam || data.lgnm || "";
-        const addr = typeof data.address === "string" ? data.address : "";
-        const parts = addr ? addr.split(",").map(s => s.trim()) : [];
-        return {
-          name: trade,
-          flatNo: parts.slice(0, 2).join(", "),
-          buildingName: parts.slice(2).join(", "),
-          state: data.state || ""
-        };
-      }
+    // 1. Backend Proxy (keeps API keys and credentials secure on the backend)
+    if (backendUrl) {
+      const glue = backendUrl.includes("?") ? "&" : "?";
+      const targetUrl = `${backendUrl}${glue}gstin=${encodeURIComponent(cleanGstin)}`;
+      res = await fetch(targetUrl, {
+        method: "GET",
+        headers: {
+          "Accept": "application/json",
+          ...(apiKey ? { "Authorization": `Bearer ${apiKey}` } : {})
+        },
+        signal: activeGstinAbortController.signal
+      });
+    } else if (provider === "appyflow" || apiKey.startsWith("appy_")) {
+      res = await fetch("https://appyflow.in/api/verifyGST", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Accept": "application/json" },
+        body: JSON.stringify({ gstNo: cleanGstin, key_secret: apiKey }),
+        signal: activeGstinAbortController.signal
+      });
+    } else if (provider === "gstincheck") {
+      res = await fetch(`https://sheet.gstincheck.co.in/check/${encodeURIComponent(apiKey)}/${encodeURIComponent(cleanGstin)}`, {
+        method: "GET",
+        headers: { "Accept": "application/json" },
+        signal: activeGstinAbortController.signal
+      });
+    } else {
+      // Default / Standard REST: gstinapi.in
+      res = await fetch(`https://www.gstinapi.in/v1/gstin/${encodeURIComponent(cleanGstin)}`, {
+        method: "GET",
+        headers: { "x-api-key": apiKey, "Accept": "application/json" },
+        signal: activeGstinAbortController.signal
+      });
     }
-  } catch (e) {}
 
-  // 3. Try official government commonapi via public CORS proxy
-  try {
-    const controller = new AbortController();
-    const tId = setTimeout(() => controller.abort(), 3500);
-    const target = `https://commonapi.gst.gov.in/commonapi/v0.3/search?taxpayerId=${encodeURIComponent(cleanGstin)}`;
-    const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(target)}`, {
-      signal: controller.signal
-    }).catch(() => null);
-    clearTimeout(tId);
+    clearTimeout(timeoutId);
 
-    if (res && res.ok) {
-      const jsonWrap = await res.json().catch(() => null);
-      if (jsonWrap && jsonWrap.contents) {
-        const json = typeof jsonWrap.contents === "string" ? JSON.parse(jsonWrap.contents) : jsonWrap.contents;
-        if (json && (json.tradeNam || json.lgnm)) {
-          const tradeName = json.tradeNam || json.lgnm || "";
-          const addr = json.pradr?.addr || {};
-          const loc = [addr.bno, addr.flno, addr.loc].filter(Boolean).join(", ");
-          const project = [addr.bknm, addr.st, addr.dst].filter(Boolean).join(", ");
-          return {
-            name: tradeName,
-            flatNo: loc,
-            buildingName: project,
-            state: ""
-          };
-        }
-      }
+    if (!res) {
+      return { success: false, errorType: "UNAVAILABLE", message: "API temporarily unavailable. Please try again." };
     }
-  } catch (e) {}
 
-  return null;
+    if (res.status === 401 || res.status === 403) {
+      return { success: false, errorType: "AUTH_FAILURE", message: "API authentication failed. Please check your credentials in Document Settings." };
+    }
+
+    if (res.status === 404) {
+      return { success: false, errorType: "NOT_FOUND", message: "GSTIN not found in the official GST database." };
+    }
+
+    if (res.status === 429) {
+      return { success: false, errorType: "RATE_LIMIT", message: "API rate limit reached. Please wait a moment before trying again." };
+    }
+
+    if (!res.ok) {
+      return { success: false, errorType: "SERVER_ERROR", message: `API returned HTTP ${res.status}. Unable to fetch details.` };
+    }
+
+    const json = await res.json().catch(() => null);
+    if (!json) {
+      return { success: false, errorType: "INVALID_RESPONSE", message: "Invalid response received from GST verification service." };
+    }
+
+    if (json.error === true || json.flag === false || json.status_cd === "0") {
+      const msg = (json.message || json.error_desc || json.desc || "").toLowerCase();
+      if (msg.includes("not found") || msg.includes("does not exist") || msg.includes("invalid")) {
+        return { success: false, errorType: "NOT_FOUND", message: "GSTIN not found in the official GST database." };
+      }
+      return { success: false, errorType: "PROVIDER_ERROR", message: json.message || "Provider returned an error." };
+    }
+
+    const normalized = normalizeGstinResponse(json);
+    if (!normalized || (!normalized.legalName && !normalized.tradeName)) {
+      return { success: false, errorType: "NOT_FOUND", message: "GSTIN not found or details unavailable from provider." };
+    }
+
+    return {
+      success: true,
+      data: normalized,
+      raw: json
+    };
+  } catch (err) {
+    clearTimeout(timeoutId);
+    if (err.name === "AbortError") {
+      return { success: false, errorType: "TIMEOUT", message: "Request timed out. API temporarily unavailable. Please try again." };
+    }
+    return { success: false, errorType: "NETWORK_ERROR", message: "Network error connecting to GST verification service. Please try again." };
+  }
 }
 
 async function handleGstinInput(rawVal, options = {}) {
   const inputEl = document.getElementById("customerGstin");
+  const fetchBtn = document.getElementById("fetchGstinBtn");
   if (!inputEl) return;
 
   const clean = (rawVal || "").toUpperCase().replace(/[^0-9A-Z]/g, "").slice(0, 15);
@@ -1135,7 +1220,7 @@ async function handleGstinInput(rawVal, options = {}) {
 
   const stateMap = (typeof GST_STATE_CODE_MAP !== "undefined" ? GST_STATE_CODE_MAP : window.GST_STATE_CODE_MAP) || {};
 
-  // 1. Instant 2-digit Indian GST State auto-detection
+  // Instant 2-digit Indian GST State auto-detection
   if (clean.length >= 2) {
     const code = clean.slice(0, 2);
     const matchedState = stateMap[code];
@@ -1161,29 +1246,6 @@ async function handleGstinInput(rawVal, options = {}) {
   }
 
   if (clean.length < 15) {
-    const dir = getCustomerDirectory();
-    if (dir[clean]) {
-      const found = dir[clean];
-      const nameEl = document.getElementById("customerName");
-      const flatEl = document.getElementById("flatNo");
-      const buildEl = document.getElementById("buildingName");
-      const phoneEl = document.getElementById("customerPhone");
-      if (found.name && nameEl) nameEl.value = found.name;
-      if (found.flatNo && flatEl) flatEl.value = found.flatNo;
-      if (found.buildingName && buildEl) buildEl.value = found.buildingName;
-      if (found.customerPhone && phoneEl) phoneEl.value = found.customerPhone;
-      if (found.state && customerState) {
-        customerState.value = found.state;
-        updateTotals();
-      }
-      if (clean === "29AACI1681G1ZL") {
-        inputEl.value = "29AAACI1681G1ZL";
-      }
-      persistDraft();
-      showGstinStatus(`✓ Auto-populated customer details for ${found.name} (${found.state || "India"})`, "success");
-      return;
-    }
-
     if (clean.length >= 2) {
       const code = clean.slice(0, 2);
       const stateName = stateMap[code] || `Code ${code}`;
@@ -1194,14 +1256,21 @@ async function handleGstinInput(rawVal, options = {}) {
     return;
   }
 
-  // Length is 15
-  const gstinRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
-  const isWellFormed = gstinRegex.test(clean);
-  const code = clean.slice(0, 2);
-  const stateName = stateMap[code] || "India";
+  // Length is 15: Validate structure and official Mod-36 checksum
+  const validator = (typeof validateGstin === "function" ? validateGstin : (window.validateGstin || null));
+  const validationResult = validator ? validator(clean) : { valid: true, stateName: stateMap[clean.slice(0, 2)] || "India" };
 
-  if (!isWellFormed && !options.silent) {
-    showGstinStatus(`GSTIN format may be invalid (expected 2 digits + 10-char PAN + 1 entity + Z + 1 check digit).`, "warning", false);
+  if (!validationResult.valid) {
+    showGstinStatus(`✖ ${validationResult.error || "GSTIN is invalid."}`, "error", false);
+    return;
+  }
+
+  const code = clean.slice(0, 2);
+  const stateName = validationResult.stateName || stateMap[code] || "India";
+
+  if (options.skipApi) {
+    showGstinStatus(`✓ Format & checksum valid (${stateName}). Click Fetch to verify.`, "info", false);
+    return;
   }
 
   const nameEl = document.getElementById("customerName");
@@ -1209,108 +1278,91 @@ async function handleGstinInput(rawVal, options = {}) {
   const buildEl = document.getElementById("buildingName");
   const phoneEl = document.getElementById("customerPhone");
 
-  // 2. Check local directory first (built-in enterprise directory + saved customers)
-  const directory = getCustomerDirectory();
-  let found = directory[clean];
-
-  // 3. Fallback: search historical documents
-  if (!found) {
-    try {
-      const docList = JSON.parse(localStorage.getItem("glassCareDocuments") || "[]");
-      const matchedDoc = docList.find(d => d.customer && d.customer.gstin && d.customer.gstin.toUpperCase() === clean);
-      if (matchedDoc) {
-        found = {
-          name: matchedDoc.customer.name,
-          flatNo: matchedDoc.customer.location,
-          buildingName: matchedDoc.customer.project,
-          customerPhone: matchedDoc.customer.phone,
-          state: matchedDoc.state
-        };
-        saveCustomerToDirectory(clean, found);
-      }
-    } catch (e) {}
-  }
-
-  if (found && (found.name || found.flatNo || found.buildingName || found.customerPhone)) {
-    if (found.name && nameEl) nameEl.value = found.name;
-    if (found.flatNo && flatEl) flatEl.value = found.flatNo;
-    if (found.buildingName && buildEl) buildEl.value = found.buildingName;
-    if (found.customerPhone && phoneEl) phoneEl.value = found.customerPhone;
-    if (found.state && customerState) {
-      customerState.value = found.state;
-      updateTotals();
-    }
-    persistDraft();
-    showGstinStatus(`✓ Auto-populated customer details for ${found.name || clean} (${found.state || stateName})`, "success");
-    return;
-  }
-
-  // 4. Online lookup attempt if not found locally
-  showGstinStatus(`Searching online GST registry for ${clean}...`, "loading", false);
+  if (fetchBtn) fetchBtn.disabled = true;
+  showGstinStatus(`Fetching GST details for ${clean}...`, "loading", false);
 
   try {
-    const online = await fetchOnlineGstinDetails(clean);
-    if (online && (online.name || online.flatNo || online.buildingName)) {
-      if (nameEl && online.name) nameEl.value = online.name;
-      if (flatEl && online.flatNo) flatEl.value = online.flatNo;
-      if (buildEl && online.buildingName) buildEl.value = online.buildingName;
-      if (online.state && customerState) {
-        customerState.value = online.state;
+    const lookup = await fetchOnlineGstinDetails(clean, { timeoutMs: 8000 });
+
+    if (lookup.success && lookup.data) {
+      const d = lookup.data;
+      if (nameEl) nameEl.value = d.tradeName || d.legalName;
+      if (flatEl && d.flatNo) flatEl.value = d.flatNo;
+      if (buildEl && d.buildingName) buildEl.value = d.buildingName;
+      if (d.state && customerState) {
+        customerState.value = d.state;
         updateTotals();
       }
 
       saveCustomerToDirectory(clean, {
-        name: online.name,
-        flatNo: online.flatNo,
-        buildingName: online.buildingName,
-        state: online.state || stateName
+        name: d.tradeName || d.legalName,
+        legalName: d.legalName,
+        tradeName: d.tradeName,
+        flatNo: d.flatNo,
+        buildingName: d.buildingName,
+        state: d.state || stateName,
+        status: d.status,
+        constitution: d.constitution,
+        taxpayerType: d.taxpayerType
       });
       persistDraft();
-      showGstinStatus(`✓ Verified GSTIN: ${online.name} (${online.state || stateName})`, "success");
+
+      if (d.status === "Cancelled") {
+        showGstinStatus(`⚠️ GST registration cancelled: ${d.legalName} (Cancelled: ${d.cancellationDate || "Yes"}).`, "warning");
+      } else if (d.status === "Suspended") {
+        showGstinStatus(`⚠️ GST registration suspended: ${d.legalName}.`, "warning");
+      } else {
+        showGstinStatus(`✓ GSTIN verified successfully: ${d.legalName} • Status: Active (${d.constitution || "Regular"})`, "success");
+      }
       return;
     }
-  } catch (err) {
-    // Online lookup failed or blocked by CORS
-  }
 
-  // 5. Intelligent PAN & Entity extraction fallback
-  const pan = clean.slice(2, 12);
-  const entityChar = clean.charAt(5);
-  const entityTypes = {
-    "C": "Company",
-    "P": "Proprietorship",
-    "F": "Partnership / LLP Firm",
-    "H": "HUF",
-    "A": "AOP",
-    "T": "Trust",
-    "G": "Government"
-  };
-  const entityType = entityTypes[entityChar] || "Registered Taxpayer";
+    // Handle lookup failure
+    if (lookup.errorType === "NOT_FOUND") {
+      showGstinStatus("✖ GSTIN not found in the official GST registration database.", "error");
+    } else if (lookup.errorType === "AUTH_FAILURE") {
+      showGstinStatus("⚠️ API authentication failed. Please check your GST API credentials in Document Settings.", "error");
+    } else if (lookup.errorType === "RATE_LIMIT") {
+      showGstinStatus("⚠️ API rate limit reached. Please wait a moment before trying again.", "warning");
+    } else if (lookup.errorType === "TIMEOUT") {
+      showGstinStatus("⚠️ API temporarily unavailable. Request timed out. Please try again or enter details manually.", "warning");
+    } else if (lookup.errorType === "NO_CONFIG") {
+      // Check if user previously saved this customer in historical documents
+      let historicalFound = null;
+      try {
+        const docList = JSON.parse(localStorage.getItem("glassCareDocuments") || "[]");
+        const matchedDoc = docList.find(item => item.customer && item.customer.gstin && item.customer.gstin.toUpperCase() === clean);
+        if (matchedDoc) {
+          historicalFound = {
+            name: matchedDoc.customer.name,
+            flatNo: matchedDoc.customer.location,
+            buildingName: matchedDoc.customer.project,
+            customerPhone: matchedDoc.customer.phone,
+            state: matchedDoc.state
+          };
+        }
+      } catch (e) {}
 
-  // Auto-populate customer fields if empty so they never remain blank
-  if (nameEl && !nameEl.value.trim()) {
-    nameEl.value = `${entityType} (${pan})`;
+      if (historicalFound) {
+        if (nameEl && historicalFound.name) nameEl.value = historicalFound.name;
+        if (flatEl && historicalFound.flatNo) flatEl.value = historicalFound.flatNo;
+        if (buildEl && historicalFound.buildingName) buildEl.value = historicalFound.buildingName;
+        if (phoneEl && historicalFound.customerPhone) phoneEl.value = historicalFound.customerPhone;
+        if (historicalFound.state && customerState) {
+          customerState.value = historicalFound.state;
+          updateTotals();
+        }
+        persistDraft();
+        showGstinStatus(`✓ Loaded saved details for ${historicalFound.name} from previous documents.`, "success");
+      } else {
+        showGstinStatus(`✓ GSTIN checksum & state (${stateName}) verified. To fetch live registered company details from the database, configure your GST API key or Backend Proxy in Document Settings.`, "info", false);
+      }
+    } else {
+      showGstinStatus(`⚠️ Unable to fetch details: ${lookup.message || "Please try again."}`, "warning");
+    }
+  } finally {
+    if (fetchBtn) fetchBtn.disabled = false;
   }
-  if (flatEl && !flatEl.value.trim()) {
-    flatEl.value = `${stateName} Business Location`;
-  }
-  if (buildEl && !buildEl.value.trim()) {
-    buildEl.value = `GSTIN: ${clean}`;
-  }
-  if (phoneEl && !phoneEl.value.trim()) {
-    phoneEl.value = "Available on GST portal";
-  }
-
-  saveCustomerToDirectory(clean, {
-    name: nameEl?.value || `${entityType} (${pan})`,
-    flatNo: flatEl?.value || `${stateName} Business Location`,
-    buildingName: buildEl?.value || `GSTIN: ${clean}`,
-    customerPhone: phoneEl?.value || "Available on GST portal",
-    state: stateName
-  });
-
-  persistDraft();
-  showGstinStatus(`✓ Valid Indian GSTIN (${stateName}) • ${entityType} (PAN: ${pan}). Customer details populated.`, "success");
 }
 
 function persistDraft() {

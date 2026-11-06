@@ -139,6 +139,47 @@ test("validates 15-character Indian GSTIN structure correctly", () => {
   assert.ok(!gstinRegex.test("ABCDE1234F1Z529")); // wrong order
 });
 
+test("validates official GSTIN Luhn Mod-36 checksum algorithm", () => {
+  const { validateGstin, calculateGSTChecksum } = require("../data.js");
+
+  // Valid Karnataka GSTINs
+  assert.equal(validateGstin("29BNYPN6916L1ZU").valid, true);
+  assert.equal(validateGstin("29BNYPN6916L1ZU").stateName, "Karnataka");
+  assert.equal(validateGstin("29AACCB6672L1Z6").valid, true);
+  assert.equal(validateGstin("29AAACI1681G1ZL").valid, true);
+  assert.equal(validateGstin("29AABCC0241R1ZH").valid, true);
+
+  // Valid Out-of-State GSTINs
+  const maha = validateGstin("27AAPFU0939F1ZV");
+  assert.equal(maha.valid, true);
+  assert.equal(maha.stateName, "Maharashtra");
+
+  const guj = validateGstin("24ABKCS2033B1ZV");
+  assert.equal(guj.valid, true);
+  assert.equal(guj.stateName, "Gujarat");
+
+  // Checksum mismatch
+  const badCheck = validateGstin("29BNYPN6916L1ZZ");
+  assert.equal(badCheck.valid, false);
+  assert.match(badCheck.error, /checksum verification failed/i);
+  assert.equal(badCheck.expectedCheck, "U");
+  assert.equal(badCheck.actualCheck, "Z");
+
+  // 14 characters (missing character)
+  const shortGstin = validateGstin("29AACI1681G1ZL");
+  assert.equal(shortGstin.valid, false);
+  assert.equal(shortGstin.length, 14);
+
+  // Empty input
+  assert.equal(validateGstin("").valid, false);
+  assert.equal(validateGstin(null).valid, false);
+
+  // Invalid state code
+  const badState = validateGstin("99AAACI1681G1ZL");
+  assert.equal(badState.valid, false);
+  assert.match(badState.error, /Invalid GST state code/i);
+});
+
 test("calculates Sqft using client size chart 3-inch step", () => {
   const c1 = calculations.calculateLine(line({ unit: "Sqft", height: 1800, width: 1200, quantity: 1, rate: 100 }));
   assert.equal(c1.chartH.inch, 72);
