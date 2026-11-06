@@ -78,6 +78,14 @@ test("Valid active Karnataka GSTIN checksum and state mapping", () => {
   assert.equal(res.entityCode, "1");
 });
 
+test("Valid Dabur India Limited (Jammu and Kashmir 01AAACD0474C1ZJ)", () => {
+  const res = validateGstin("01AAACD0474C1ZJ");
+  assert.equal(res.valid, true);
+  assert.equal(res.stateCode, "01");
+  assert.equal(res.stateName, "Jammu and Kashmir");
+  assert.equal(res.pan, "AAACD0474C");
+});
+
 test("Valid GSTIN from another state (Maharashtra, Gujarat, Delhi)", () => {
   const maha = validateGstin("27AAPFU0939F1ZV");
   assert.equal(maha.valid, true);

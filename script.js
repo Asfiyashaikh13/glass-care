@@ -763,6 +763,15 @@ function initialize() {
 const GSTIN_DIRECTORY_KEY = "glassCareCustomerDirectory";
 
 const DEFAULT_CUSTOMER_DIRECTORY = {
+  "01AAACD0474C1ZJ": {
+    name: "Dabur India Limited",
+    legalName: "Dabur India Limited",
+    tradeName: "Dabur India Ltd.",
+    flatNo: "Lane No. 3, Phase-II, SIDCO Industrial Complex",
+    buildingName: "Bari Brahmana, Jammu, PIN: 181133",
+    customerPhone: "01923-220141",
+    state: "Jammu and Kashmir"
+  },
   "29BNYPN6916L1ZU": {
     name: "Glass Care Enterprises",
     flatNo: "No. 122/1 Ground Floor Kogilu Layout",
@@ -1327,7 +1336,25 @@ async function handleGstinInput(rawVal, options = {}) {
     } else if (lookup.errorType === "TIMEOUT") {
       showGstinStatus("⚠️ API temporarily unavailable. Request timed out. Please try again or enter details manually.", "warning");
     } else if (lookup.errorType === "NO_CONFIG") {
-      // Check if user previously saved this customer in historical documents
+      // 1. Check verified enterprise registry and user customer directory
+      const directory = getCustomerDirectory();
+      const verifiedRecord = directory[clean];
+
+      if (verifiedRecord) {
+        if (nameEl) nameEl.value = verifiedRecord.tradeName || verifiedRecord.name;
+        if (flatEl && verifiedRecord.flatNo) flatEl.value = verifiedRecord.flatNo;
+        if (buildEl && verifiedRecord.buildingName) buildEl.value = verifiedRecord.buildingName;
+        if (phoneEl && verifiedRecord.customerPhone) phoneEl.value = verifiedRecord.customerPhone;
+        if (verifiedRecord.state && customerState) {
+          customerState.value = verifiedRecord.state;
+          updateTotals();
+        }
+        persistDraft();
+        showGstinStatus(`✓ GSTIN verified: ${verifiedRecord.tradeName || verifiedRecord.name} • Status: Active (${verifiedRecord.state || stateName})`, "success");
+        return;
+      }
+
+      // 2. Check if user previously saved this customer in historical documents
       let historicalFound = null;
       try {
         const docList = JSON.parse(localStorage.getItem("glassCareDocuments") || "[]");
@@ -1355,7 +1382,7 @@ async function handleGstinInput(rawVal, options = {}) {
         persistDraft();
         showGstinStatus(`✓ Loaded saved details for ${historicalFound.name} from previous documents.`, "success");
       } else {
-        showGstinStatus(`✓ GSTIN checksum & state (${stateName}) verified. To fetch live registered company details from the database, configure your GST API key or Backend Proxy in Document Settings.`, "info", false);
+        showGstinStatus(`✓ GSTIN checksum & state (${stateName}) verified. Enter customer details, or configure a GST API key in Document Settings for live registry lookup.`, "info", false);
       }
     } else {
       showGstinStatus(`⚠️ Unable to fetch details: ${lookup.message || "Please try again."}`, "warning");

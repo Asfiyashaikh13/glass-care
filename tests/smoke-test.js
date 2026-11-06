@@ -255,6 +255,27 @@ async function run() {
             }
           })
         });
+      } else if (url.includes("01AAACD0474C1ZJ")) {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            data: {
+              legalName: "Dabur India Limited",
+              tradeName: "Dabur India Limited",
+              status: "Active",
+              constitutionOfBusiness: "Public Limited Company",
+              address: {
+                buildingNo: "Lane No. 3, Phase-II",
+                buildingName: "SIDCO Industrial Complex",
+                location: "Bari Brahmana",
+                district: "Jammu",
+                state: "Jammu and Kashmir",
+                pincode: "181133"
+              }
+            }
+          })
+        });
       } else {
         await route.fulfill({
           status: 404,
@@ -300,6 +321,21 @@ async function run() {
     assert.ok(fetchedFlat.includes("184"), "Flat should contain 184");
     assert.ok(fetchedBuilding.includes("Raghavendra Complex"), "Building should contain complex name");
     console.log("GSTIN auto-fetch verified for 29AACCB6672L1Z6 via API!");
+
+    // Test Dabur India Limited (Jammu and Kashmir 01AAACD0474C1ZJ)
+    await page.locator("#customerGstin").fill("01AAACD0474C1ZJ");
+    await page.locator("#fetchGstinBtn").click();
+    await page.waitForTimeout(300);
+
+    fetchedName = await page.locator("#customerName").inputValue();
+    fetchedFlat = await page.locator("#flatNo").inputValue();
+    fetchedBuilding = await page.locator("#buildingName").inputValue();
+    fetchedState = await page.locator("#customerState").inputValue();
+    console.log("Auto-fetched for 01AAACD0474C1ZJ (Dabur India Limited):", { fetchedName, fetchedFlat, fetchedBuilding, fetchedState });
+    assert.strictEqual(fetchedName, "Dabur India Limited");
+    assert.ok(fetchedBuilding.includes("SIDCO"), "Building should contain SIDCO Industrial Complex");
+    assert.strictEqual(fetchedState, "Jammu and Kashmir");
+    console.log("GSTIN auto-fetch verified for Dabur India Limited (01AAACD0474C1ZJ)!");
 
     console.log("All Playwright browser smoke test assertions PASSED!");
   } finally {
