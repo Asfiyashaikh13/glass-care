@@ -111,11 +111,12 @@
         <div style="display: flex; flex-direction: column; gap: 3px;">
           <label for="gstinProviderSetting" style="font-size: 12px; color: #475569; font-weight: 500;">Verification Provider:</label>
           <select id="gstinProviderSetting" style="padding: 6px 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 12px; max-width: 440px; background: #fff;">
-            <option value="auto">Auto-Detect / Standard REST (gstinapi.in)</option>
-            <option value="backend">Secure Backend / Supabase Edge Function Proxy</option>
+            <option value="gstincheck">GSTINCheck (sheet.gstincheck.co.in) [Recommended - Direct Browser CORS]</option>
+            <option value="auto">Standard REST / gstinapi.in (Requires Backend Proxy)</option>
             <option value="appyflow">Appyflow (appyflow.in)</option>
-            <option value="gstincheck">GSTINCheck (sheet.gstincheck.co.in)</option>
+            <option value="backend">Custom Backend / Supabase Edge Function Proxy</option>
           </select>
+          <small style="color: #64748b; font-size: 11px;">💡 <strong>GSTINCheck</strong> (sheet.gstincheck.co.in) supports direct browser lookups. <strong>gstinapi.in</strong> requires a Backend Proxy due to browser CORS.</small>
         </div>
 
         <div style="display: flex; flex-direction: column; gap: 3px;">
@@ -603,15 +604,15 @@
   </div>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="supabase-config.js?v=glasscare-v8"></script>
-<script src="supabase-store.js?v=glasscare-v8"></script>
-<script src="data.js?v=glasscare-v19-msft"></script>
-<script src="size-chart.js?v=glasscare-v8"></script>
-<script src="decimal.js?v=glasscare-v8"></script>
-<script src="calc.js?v=glasscare-v8"></script>
-<script src="calculations.js?v=glasscare-v8"></script>
-<script src="html2pdf.bundle.min.js?v=glasscare-v8"></script>
-<script src="script.js?v=glasscare-v19-msft"></script>
-<script src="documents.js?v=glasscare-v8"></script>
+<script src="supabase-config.js?v=glasscare-v20-direct"></script>
+<script src="supabase-store.js?v=glasscare-v20-direct"></script>
+<script src="data.js?v=glasscare-v20-direct"></script>
+<script src="size-chart.js?v=glasscare-v20-direct"></script>
+<script src="decimal.js?v=glasscare-v20-direct"></script>
+<script src="calc.js?v=glasscare-v20-direct"></script>
+<script src="calculations.js?v=glasscare-v20-direct"></script>
+<script src="html2pdf.bundle.min.js?v=glasscare-v20-direct"></script>
+<script src="script.js?v=glasscare-v20-direct"></script>
+<script src="documents.js?v=glasscare-v20-direct"></script>
 </body>
 </html>

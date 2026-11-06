@@ -780,6 +780,51 @@ const DEFAULT_CUSTOMER_DIRECTORY = {
     customerPhone: "011-66500000",
     state: "Delhi"
   },
+  "33AAACS1632C1Z3": {
+    name: "Saint-Gobain India Private Limited",
+    legalName: "Saint-Gobain India Private Limited",
+    tradeName: "Saint-Gobain Glass",
+    flatNo: "Plot No. A-1, SIPCOT Industrial Park",
+    buildingName: "Sriperumbudur, Kanchipuram, Tamil Nadu, PIN: 602105",
+    customerPhone: "044-47118000",
+    state: "Tamil Nadu"
+  },
+  "29AAACS1632C1ZS": {
+    name: "Saint-Gobain India Private Limited",
+    legalName: "Saint-Gobain India Private Limited",
+    tradeName: "Saint-Gobain Glass",
+    flatNo: "Level 4, Prestige Emerald",
+    buildingName: "Madras Bank Road, Lavelle Road, Bengaluru, PIN: 560001",
+    customerPhone: "080-40248000",
+    state: "Karnataka"
+  },
+  "06AAACA0741M1ZX": {
+    name: "Asahi India Glass Limited",
+    legalName: "Asahi India Glass Limited",
+    tradeName: "AIS Glass",
+    flatNo: "Plot No. 12, Sub-District Bawal",
+    buildingName: "Phase II, Industrial Growth Centre, Rewari, Haryana, PIN: 123501",
+    customerPhone: "0124-4062212",
+    state: "Haryana"
+  },
+  "29AAACA0741M1ZP": {
+    name: "Asahi India Glass Limited",
+    legalName: "Asahi India Glass Limited",
+    tradeName: "AIS Glass",
+    flatNo: "No. 401, 4th Floor, Brigade Towers",
+    buildingName: "135 Brigade Road, Bengaluru, PIN: 560025",
+    customerPhone: "080-22270741",
+    state: "Karnataka"
+  },
+  "07AAACG0198E1ZV": {
+    name: "Goldplus Glass Industry Limited",
+    legalName: "Goldplus Glass Industry Limited",
+    tradeName: "Goldplus Glass",
+    flatNo: "Goldplus House, 4th Floor",
+    buildingName: "8/19, Kirti Nagar Industrial Area, New Delhi, PIN: 110015",
+    customerPhone: "011-41005000",
+    state: "Delhi"
+  },
   "29ADRFS2028L1ZG": {
     name: "R N Tuff Glassic",
     legalName: "R N Tuff Glassic",
@@ -1403,6 +1448,14 @@ async function fetchOnlineGstinDetails(cleanGstin, options = {}) {
     if (err.name === "AbortError") {
       return { success: false, errorType: "TIMEOUT", message: "Request timed out. API temporarily unavailable. Please try again." };
     }
+    const isGstinApi = !provider || provider === "auto" || provider === "gstinapi";
+    if (isGstinApi && !backendUrl) {
+      return {
+        success: false,
+        errorType: "CORS_BLOCKED",
+        message: "Browser CORS blocked direct request to gstinapi.in. Use GSTINCheck (sheet.gstincheck.co.in) in Document Settings or set a Backend Proxy."
+      };
+    }
     return { success: false, errorType: "NETWORK_ERROR", message: "Network error connecting to GST verification service. Please try again." };
   }
 }
@@ -1580,6 +1633,8 @@ async function handleGstinInput(rawVal, options = {}) {
         showGstinStatus("GSTIN not found in the official GST registration database.", "error");
       } else if (lookup.errorType === "AUTH_FAILURE") {
         showGstinStatus("API authentication failed. Please check your GST API credentials in Document Settings.", "error");
+      } else if (lookup.errorType === "CORS_BLOCKED") {
+        showGstinStatus("⚠️ Browser CORS blocked direct connection to gstinapi.in. In Document Settings, choose 'GSTINCheck (sheet.gstincheck.co.in)' for direct browser lookup, or configure a Backend Proxy.", "warning", false);
       } else if (lookup.errorType === "RATE_LIMIT") {
         showGstinStatus("API rate limit reached. Please wait a moment before trying again.", "warning");
       } else if (lookup.errorType === "TIMEOUT") {
@@ -1594,7 +1649,7 @@ async function handleGstinInput(rawVal, options = {}) {
   }
 
   // 4. If new uncataloged GSTIN and no live API configured
-  showGstinStatus(`Valid ${stateName} GSTIN verified. Enter customer name & location to save to your directory.`, "info", false);
+  showGstinStatus(`✓ Valid ${stateName} GSTIN verified. Enter customer name & location to save to your directory, or configure an API key in Document Settings for automatic online fetching.`, "info", false);
 }
 
 function persistDraft() {

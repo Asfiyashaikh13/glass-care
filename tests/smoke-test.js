@@ -397,6 +397,32 @@ async function run() {
     assert.strictEqual(fetchedState, "Delhi");
     console.log("GSTIN auto-fetch verified for 07AAACM5586C1ZJ (Microsoft India)!");
 
+    // Test Saint-Gobain India (33AAACS1632C1Z3)
+    await page.locator("#customerGstin").fill("33AAACS1632C1Z3");
+    await page.locator("#fetchGstinBtn").click();
+    await page.waitForTimeout(300);
+
+    fetchedName = await page.locator("#customerName").inputValue();
+    fetchedFlat = await page.locator("#flatNo").inputValue();
+    fetchedBuilding = await page.locator("#buildingName").inputValue();
+    fetchedState = await page.locator("#customerState").inputValue();
+    console.log("Auto-fetched for 33AAACS1632C1Z3 (Saint-Gobain Glass):", { fetchedName, fetchedFlat, fetchedBuilding, fetchedState });
+    assert.ok(fetchedName.includes("Saint-Gobain"), "Customer name should contain Saint-Gobain");
+    assert.strictEqual(fetchedState, "Tamil Nadu");
+    console.log("GSTIN auto-fetch verified for Saint-Gobain Glass (33AAACS1632C1Z3)!");
+
+    // Test Asahi India Glass (AIS Glass 06AAACA0741M1ZX)
+    await page.locator("#customerGstin").fill("06AAACA0741M1ZX");
+    await page.locator("#fetchGstinBtn").click();
+    await page.waitForTimeout(300);
+
+    fetchedName = await page.locator("#customerName").inputValue();
+    fetchedState = await page.locator("#customerState").inputValue();
+    console.log("Auto-fetched for 06AAACA0741M1ZX (AIS Glass):", { fetchedName, fetchedState });
+    assert.ok(fetchedName.includes("AIS Glass") || fetchedName.includes("Asahi India Glass"), "Customer name should contain AIS Glass");
+    assert.strictEqual(fetchedState, "Haryana");
+    console.log("GSTIN auto-fetch verified for AIS Glass (06AAACA0741M1ZX)!");
+
     console.log("All Playwright browser smoke test assertions PASSED!");
   } finally {
     if (browser) await browser.close();
