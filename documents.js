@@ -143,6 +143,42 @@
     });
   }
 
+  // 1-Click Sync of all saved Glass Care documents to GCE Quote Manager (7 Tabs Platform)
+  const syncQuotationManagerBtn = document.getElementById("syncQuotationManagerBtn");
+  if (syncQuotationManagerBtn) {
+    syncQuotationManagerBtn.addEventListener("click", async () => {
+      const allDocs = readJson(STORAGE.documents, []);
+      if (!allDocs.length) {
+        alert("No documents found in Glass Care to sync yet. Generate an Estimate, Bill or Invoice first.");
+        return;
+      }
+      syncQuotationManagerBtn.disabled = true;
+      const originalText = syncQuotationManagerBtn.textContent;
+      syncQuotationManagerBtn.textContent = "Syncing to Quotation Tracker…";
+      try {
+        const syncUrl = "https://gce-quote-manager-git-main-asfiyashaikh13.vercel.app/api/integrations/glass-care";
+        const res = await fetch(syncUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ documents: allDocs }),
+          mode: "cors"
+        });
+        const data = await res.json();
+        if (data.success) {
+          alert(`✓ Successfully synced ${data.processedCount || allDocs.length} document(s) to Quotation Tracker & 7 Tabs Platform!`);
+          showStatus(`✓ ${data.processedCount || allDocs.length} document(s) reflected in Quotation Tracker.`);
+        } else {
+          alert("Sync error: " + (data.error || "Failed to sync"));
+        }
+      } catch (err) {
+        alert("Network error syncing to Quotation Tracker: " + err.message);
+      } finally {
+        syncQuotationManagerBtn.disabled = false;
+        syncQuotationManagerBtn.textContent = originalText;
+      }
+    });
+  }
+
   function escapeHtml(value) {
     return String(value ?? "").replace(/[&<>"']/g, char => ({
       "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
@@ -330,6 +366,25 @@
     } catch (e) {
       console.warn("Cloud save failed, saved locally:", e);
       localStorage.setItem(STORAGE.documents, JSON.stringify(documents));
+    }
+
+    // Automatic Live Webhook to GCE Quote Manager (7 Tabs Platform)
+    try {
+      const syncUrl = "https://gce-quote-manager-git-main-asfiyashaikh13.vercel.app/api/integrations/glass-care";
+      fetch(syncUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ document: record }),
+        mode: "cors"
+      }).then(r => r.json()).then(res => {
+        if (res.success) {
+          console.log("✓ Live synced to Quotation Tracker & 7 Tabs:", res);
+        }
+      }).catch(err => {
+        console.warn("Background sync to Quotation Tracker skipped (network offline/blocked):", err);
+      });
+    } catch (syncErr) {
+      console.warn("Sync error:", syncErr);
     }
 
     if (window.GlassCareDirectory?.save && data.customerGstin) {
