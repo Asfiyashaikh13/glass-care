@@ -1942,7 +1942,7 @@
     pdfModalBackdrop.addEventListener("click", closeModal);
   }
 
-  const DEFAULT_GSTIN_BACKEND_PROXY = "https://clarity-disposal-loud-detected.trycloudflare.com/api/gstin";
+  const DEFAULT_GSTIN_BACKEND_PROXY = "https://gce-quote-manager.vercel.app/api/gstin";
 
   document.getElementById("companySettingsBtn")?.addEventListener("click", () => {
     if (settingsPanel) {
@@ -1950,7 +1950,12 @@
       const keyInput = document.getElementById("gstinApiKeySetting");
       if (keyInput) keyInput.value = localStorage.getItem("glassCareGstinApiKey") || "";
       const urlInput = document.getElementById("gstinBackendUrlSetting");
-      if (urlInput) urlInput.value = localStorage.getItem("glassCareGstinBackendUrl") || DEFAULT_GSTIN_BACKEND_PROXY;
+      let storedUrl = (localStorage.getItem("glassCareGstinBackendUrl") || "").trim();
+      if (!storedUrl || storedUrl.includes("trycloudflare.com")) {
+        storedUrl = DEFAULT_GSTIN_BACKEND_PROXY;
+        try { localStorage.setItem("glassCareGstinBackendUrl", DEFAULT_GSTIN_BACKEND_PROXY); } catch (e) {}
+      }
+      if (urlInput) urlInput.value = storedUrl;
       const providerInput = document.getElementById("gstinProviderSetting");
       if (providerInput) providerInput.value = localStorage.getItem("glassCareGstinProvider") || "gstinportal";
       settingsPanel.scrollIntoView({ behavior: "smooth", block: "nearest" });

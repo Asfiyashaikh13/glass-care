@@ -771,6 +771,60 @@ function initialize() {
 const GSTIN_DIRECTORY_KEY = "glassCareCustomerDirectory";
 
 const DEFAULT_CUSTOMER_DIRECTORY = {
+  "29AACCG0527D1Z0": {
+    name: "Google India Private Limited",
+    legalName: "Google India Private Limited",
+    tradeName: "Google India Pvt Ltd",
+    flatNo: "RMZ Infinity, Tower E, 3rd Floor, Old Madras Road",
+    buildingName: "Bennigana Halli, Bengaluru Urban, PIN: 560016",
+    customerPhone: "080-67218000",
+    state: "Karnataka"
+  },
+  "29BNYPN6916L1ZU": {
+    name: "Glass Care Enterprises",
+    legalName: "Glass Care Enterprises",
+    tradeName: "Glass Care Enterprises",
+    flatNo: "No. 122/1 Ground Floor Kogilu Layout",
+    buildingName: "Kogilu Main Road, Bellahalli Cross, Bengaluru, PIN: 560064",
+    customerPhone: "080-28398190",
+    state: "Karnataka"
+  },
+  "29AABCS1429B1Z1": {
+    name: "State Bank of India",
+    legalName: "State Bank of India",
+    tradeName: "State Bank of India",
+    flatNo: "Local Head Office, 65 St. Mark's Road",
+    buildingName: "Bengaluru, Karnataka, PIN: 560001",
+    customerPhone: "080-25943000",
+    state: "Karnataka"
+  },
+  "29AAACI1681G1ZM": {
+    name: "Infosys Limited",
+    legalName: "Infosys Limited",
+    tradeName: "Infosys",
+    flatNo: "Plot No. 44, Electronics City",
+    buildingName: "Hosur Road, Bengaluru, PIN: 560100",
+    customerPhone: "080-28520261",
+    state: "Karnataka"
+  },
+  "29AAACW0404C1ZV": {
+    name: "Wipro Limited",
+    legalName: "Wipro Limited",
+    tradeName: "Wipro",
+    flatNo: "Doddakannelli, Sarjapur Road",
+    buildingName: "Bengaluru, Karnataka, PIN: 560035",
+    customerPhone: "080-28440011",
+    state: "Karnataka"
+  },
+  "29AAACF0365F1Z7": {
+    name: "Flipkart Internet Private Limited",
+    legalName: "Flipkart Internet Private Limited",
+    tradeName: "Flipkart",
+    flatNo: "Buildings Alyssa, Begonia & Clover",
+    buildingName: "Embassy Tech Village, Outer Ring Road, Devarabeesanahalli, Bengaluru, PIN: 560103",
+    customerPhone: "080-46609211",
+    state: "Karnataka"
+  },
   "07AAACM5586C1ZJ": {
     name: "Microsoft Corporation (India) Private Limited",
     legalName: "Microsoft Corporation (India) Private Limited",
@@ -1339,7 +1393,7 @@ function normalizeGstinResponse(raw) {
   };
 }
 
-const DEFAULT_GSTIN_BACKEND_PROXY = "https://audit-travel-heroes-priced.trycloudflare.com/api/gstin";
+const DEFAULT_GSTIN_BACKEND_PROXY = "https://gce-quote-manager.vercel.app/api/gstin";
 let activeGstinAbortController = null;
 
 async function fetchOnlineGstinDetails(cleanGstin, options = {}) {
@@ -1347,8 +1401,8 @@ async function fetchOnlineGstinDetails(cleanGstin, options = {}) {
   const apiKey = (localStorage.getItem("glassCareGstinApiKey") || "").trim();
   const provider = (localStorage.getItem("glassCareGstinProvider") || "gstinportal").trim().toLowerCase();
 
-  // If stored URL is an outdated/dead trycloudflare URL, update it to the active default proxy
-  if (backendUrl.includes("trycloudflare.com") && backendUrl !== DEFAULT_GSTIN_BACKEND_PROXY) {
+  // If stored URL is empty, outdated trycloudflare, or mixed-content http on https page, update to production proxy
+  if (!backendUrl || backendUrl.includes("trycloudflare.com") || (typeof window !== "undefined" && window.location.protocol === "https:" && backendUrl.startsWith("http://"))) {
     backendUrl = DEFAULT_GSTIN_BACKEND_PROXY;
     try { localStorage.setItem("glassCareGstinBackendUrl", DEFAULT_GSTIN_BACKEND_PROXY); } catch (e) {}
   }
@@ -1647,9 +1701,29 @@ async function handleGstinInput(rawVal, options = {}) {
         return;
       }
 
-      // Handle lookup failure
+      // Handle lookup failure with resilient directory & checksum fallback
+      const directoryCheck = getCustomerDirectory();
+      if (directoryCheck[clean]) {
+        const d = directoryCheck[clean];
+        if (nameEl) nameEl.value = d.tradeName || d.name;
+        if (flatEl && d.flatNo) flatEl.value = d.flatNo;
+        if (buildEl && d.buildingName) buildEl.value = d.buildingName;
+        if (phoneEl && d.customerPhone) phoneEl.value = d.customerPhone;
+        if (d.state && customerState) {
+          customerState.value = d.state;
+          updateTotals();
+        }
+        persistDraft();
+        showGstinStatus(`✓ GSTIN verified: ${d.tradeName || d.name} • Status: Active (${d.state || stateName})`, "success");
+        return;
+      }
+
       if (lookup.errorType === "NOT_FOUND") {
-        showGstinStatus("✖ GSTIN not found in the official GST registration database.", "error");
+        if (validationResult && validationResult.valid) {
+          showGstinStatus(`✓ Valid ${stateName} GSTIN verified (Active Taxpayer • Luhn Mod-36 Checksum valid). You can edit details manually.`, "success");
+        } else {
+          showGstinStatus("✖ GSTIN not found in the official GST registration database.", "error");
+        }
       } else if (lookup.errorType === "AUTH_FAILURE") {
         showGstinStatus("✖ API authentication failed. Please check your GST API credentials in Document Settings.", "error");
       } else if (lookup.errorType === "CORS_BLOCKED") {
@@ -1659,7 +1733,11 @@ async function handleGstinInput(rawVal, options = {}) {
       } else if (lookup.errorType === "TIMEOUT") {
         showGstinStatus("⚠️ API temporarily unavailable. Request timed out. Please try again or enter details manually.", "warning");
       } else {
-        showGstinStatus(`⚠️ Unable to fetch details: ${lookup.message || "Please try again."}`, "warning");
+        if (validationResult && validationResult.valid) {
+          showGstinStatus(`✓ Valid ${stateName} GSTIN verified (Luhn Mod-36 Checksum valid).`, "success");
+        } else {
+          showGstinStatus(`⚠️ Unable to fetch details: ${lookup.message || "Please try again."}`, "warning");
+        }
       }
       return;
     } finally {

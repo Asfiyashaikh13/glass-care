@@ -7,9 +7,44 @@ const assert = require("assert");
 async function run() {
   const rootDir = path.resolve(__dirname, "..");
   
-  // Create a minimal static HTTP server
+  // Create a minimal static HTTP server with local GSTIN mock support
   const server = http.createServer((req, res) => {
     let reqPath = req.url.split("?")[0];
+
+    // Mock GSTIN backend proxy for 08AAACT6908R1ZN
+    if (reqPath.startsWith("/api/gstin")) {
+      res.writeHead(200, {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type, Accept, Authorization, x-api-key"
+      });
+      res.end(JSON.stringify({
+        success: true,
+        gstin: "08AAACT6908R1ZN",
+        data: {
+          gstin: "08AAACT6908R1ZN",
+          legal_name: "TRIVEDI CORP PRIVATE LIMITED",
+          trade_name: "TRIVEDI CORP PRIVATE LIMITED",
+          status: "Active",
+          taxpayer_type: "Regular",
+          state_code: "08",
+          address: "PLOT NO.SP-229, 230, 231, RIICO GROWTH CENTER, PHASE-II, MAVAL, ABU ROAD, PIN: 307026",
+          city: "ABU ROAD",
+          address_details: {
+            building_number: "SP-229",
+            building_name: "RIICO GROWTH CENTER, PHASE-II",
+            locality: "MAVAL",
+            city: "ABU ROAD",
+            district: "SIROHI",
+            state: "Rajasthan",
+            pincode: "307026"
+          }
+        }
+      }));
+      return;
+    }
+
     if (reqPath === "/") reqPath = "/index.html";
     const filePath = path.join(rootDir, reqPath);
     if (!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
@@ -424,10 +459,10 @@ async function run() {
     console.log("GSTIN auto-fetch verified for AIS Glass (06AAACA0741M1ZX)!");
 
     // Test Live GSTIN Portal Backend Proxy with 08AAACT6908R1ZN (TRIVEDI CORP PRIVATE LIMITED)
-    await page.evaluate(() => {
-      localStorage.setItem("glassCareGstinBackendUrl", "http://localhost:3000/api/gstin");
+    await page.evaluate((proxyUrl) => {
+      localStorage.setItem("glassCareGstinBackendUrl", proxyUrl);
       localStorage.setItem("glassCareGstinProvider", "gstinportal");
-    });
+    }, `http://localhost:${port}/api/gstin`);
 
     await page.locator("#customerGstin").fill("08AAACT6908R1ZN");
     await page.locator("#fetchGstinBtn").click();
