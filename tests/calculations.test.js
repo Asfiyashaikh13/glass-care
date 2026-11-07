@@ -405,6 +405,59 @@ test("spec: 2290 x 760 x 460 mm, Cubic Ft with 3-inch rounding (76.2mm) -> 2362.
   assert.equal(item.grossAmount, 7628.91);
 });
 
+test("spec: Exact Millimetres Test Case (1200 x 1200 x 1200 mm, round-up enabled -> 1219.2 x 1219.2 x 1219.2 mm -> 64.000 CFT, ₹19,200 + ₹3,456 GST = ₹22,656)", () => {
+  const item = {
+    dimensionUnit: "mm",
+    height: 1200,
+    width: 1200,
+    thickness: 1200,
+    unit: "Cubic Ft",
+    quantity: 1,
+    round3Inch: true,
+    rate: 300,
+    discountPercent: 0,
+    gstRate: 18,
+    state: "Delhi"
+  };
+  const lineRes = calculations.calculateLine(line(item));
+  assert.equal(lineRes.billedHeightMm, 1219.2);
+  assert.equal(lineRes.billedWidthMm, 1219.2);
+  assert.equal(lineRes.billedThicknessMm, 1219.2);
+  assert.equal(lineRes.measure.toFixed(3), "64.000");
+  assert.equal(lineRes.grossAmount, 19200);
+  assert.equal(lineRes.taxAmount, 3456);
+
+  const totals = calculations.calculateTotals([item], "Delhi");
+  assert.equal(totals.subtotal, 19200);
+  assert.equal(totals.taxTotal, 3456);
+  assert.equal(totals.payable, 22656);
+});
+
+test("spec: Exact Inches Test Case (48 x 48 x 48 in, round-up enabled -> 48 x 48 x 48 in -> 64.000 CFT, ₹19,200 + ₹3,456 GST = ₹22,656)", () => {
+  const item = {
+    dimensionUnit: "in",
+    height: 48,
+    width: 48,
+    thickness: 48,
+    unit: "Cubic Ft",
+    quantity: 1,
+    round3Inch: true,
+    rate: 300,
+    discountPercent: 0,
+    gstRate: 18,
+    state: "Delhi"
+  };
+  const lineRes = calculations.calculateLine(line(item));
+  assert.equal(lineRes.measure.toFixed(3), "64.000");
+  assert.equal(lineRes.grossAmount, 19200);
+  assert.equal(lineRes.taxAmount, 3456);
+
+  const totals = calculations.calculateTotals([item], "Delhi");
+  assert.equal(totals.subtotal, 19200);
+  assert.equal(totals.taxTotal, 3456);
+  assert.equal(totals.payable, 22656);
+});
+
 
 
 

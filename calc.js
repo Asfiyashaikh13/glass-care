@@ -332,11 +332,15 @@
           .dividedBy(new Decimal(1728))
           .times(decQty);
 
+        billedHMm = hIn * MM_PER_INCH;
+        billedWMm = wIn * MM_PER_INCH;
+        billedDMm = dIn * MM_PER_INCH;
+
         const hasRound = round3Inch && (hIn !== enteredH || wIn !== enteredW || dIn !== enteredD);
         if (hasRound) {
-          stepFormula = `${enteredH}″ × ${enteredW}″ × ${enteredD}″ → rounded ${hIn}″ × ${wIn}″ × ${dIn}″ ÷ 1728 = ${decMeasure.toFixed(4)} cu ft × ₹${rate}`;
+          stepFormula = `${enteredH}″ × ${enteredW}″ × ${enteredD}″ → rounded ${hIn}″ × ${wIn}″ × ${dIn}″ ÷ 1,728 = ${decMeasure.toFixed(4)} cu ft × ₹${rate}`;
         } else {
-          stepFormula = `${enteredH}″ × ${enteredW}″ × ${enteredD}″ ÷ 1728 = ${decMeasure.toFixed(4)} cu ft × ₹${rate}`;
+          stepFormula = `${enteredH}″ × ${enteredW}″ × ${enteredD}″ ÷ 1,728 = ${decMeasure.toFixed(4)} cu ft × ₹${rate}`;
         }
       } else if (dimUnit === "ft") {
         const hFt = round3Inch ? Math.ceil((enteredH * 12) / 3) * 3 / 12 : enteredH;

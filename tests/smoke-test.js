@@ -471,10 +471,43 @@ async function run() {
     const descTotal = await page.locator("#descTotalAmountDisplay").textContent();
 
     console.log("Generated Description Box content:", { descText, descQty, descRate, descTotal });
-    assert.ok(descText.includes("12") && descText.includes("1728") && descText.includes("CFT"), "Description must show 12*12*12 / 1728 CFT formula");
+    assert.ok(descText.includes("12") && (descText.includes("1728") || descText.includes("1,728")) && descText.includes("CFT"), "Description must show 12*12*12 / 1728 CFT formula");
     assert.ok(descQty.includes("1"), "Description meta bar must show Qty 1");
     assert.ok(descRate.includes("300"), "Description meta bar must show Rate 300");
     assert.ok(descTotal.includes("300"), "Description meta bar must show Total 300");
+
+    // Verify Exact Inches Test Case (48 x 48 x 48 in, round-up enabled -> 64.000 CFT -> ₹19,200)
+    await page.locator("#height").fill("48");
+    await page.locator("#width").fill("48");
+    await page.locator("#thickness").fill("48");
+    await page.locator("#round3InchToggle").setChecked(true);
+    await page.waitForTimeout(200);
+
+    const cftInchesText = await page.locator("#areaDisplay").textContent();
+    const amountInchesText = await page.locator("#amountDisplay").textContent();
+    const formulaInchesText = await page.locator("#formulaNote").textContent();
+    console.log("Browser Exact Inches Test Case:", { cftInchesText, amountInchesText, formulaInchesText });
+    assert.ok(cftInchesText.includes("64.000"), "Cubic Ft must be 64.000 for 48x48x48 in");
+    assert.ok(amountInchesText.includes("19,200"), "Amount must be ₹19,200 for 64 CFT at ₹300");
+    assert.ok(formulaInchesText.includes("1,728") && !formulaInchesText.includes("28,316,846.592"), "Inches formula note must show 1,728 divisor only");
+
+    // Verify Exact Millimetres Test Case (1200 x 1200 x 1200 mm, round-up enabled -> 1219.2 mm -> 64.000 CFT -> ₹19,200)
+    await page.locator("#dimensionUnit").selectOption("mm");
+    await page.locator("#height").fill("1200");
+    await page.locator("#width").fill("1200");
+    await page.locator("#thickness").fill("1200");
+    await page.locator("#round3InchToggle").setChecked(true);
+    await page.waitForTimeout(200);
+
+    const cftMmText = await page.locator("#areaDisplay").textContent();
+    const amountMmText = await page.locator("#amountDisplay").textContent();
+    const dimsUsedMmText = await page.locator("#roundedSize").textContent();
+    const formulaMmText = await page.locator("#formulaNote").textContent();
+    console.log("Browser Exact MM Test Case:", { cftMmText, amountMmText, dimsUsedMmText, formulaMmText });
+    assert.ok(cftMmText.includes("64.000"), "Cubic Ft must be 64.000 for 1200x1200x1200 mm with 3-inch rounding");
+    assert.ok(amountMmText.includes("19,200"), "Amount must be ₹19,200 for 64 CFT at ₹300");
+    assert.ok(dimsUsedMmText.includes("1219.2"), "Rounded dimensions must show 1219.2 mm");
+    assert.ok(formulaMmText.includes("28,316,846.592") && !formulaMmText.includes("1,728"), "MM formula note must show 28,316,846.592 divisor only");
 
     console.log("All Playwright browser smoke test assertions PASSED!");
   } finally {

@@ -1898,11 +1898,11 @@ function updateCalculation() {
     if (areaCardLabel) areaCardLabel.textContent = "Cubic Feet";
     if (formulaNote) {
       if (dimUnit === "in") {
-        formulaNote.textContent = `ⓘ Cubic Ft (Inches): Volume = (Length in × Width in × Depth in) ÷ 1,728 × Qty (constant 1,728 cu.in = 1 cu.ft). Amount = Volume × Rate × (1 − Discount%/100).`;
+        formulaNote.textContent = `ⓘ Cubic Ft = (Length in × Width in × Depth in) ÷ 1,728 × Quantity`;
       } else if (dimUnit === "ft") {
-        formulaNote.textContent = `ⓘ Cubic Ft (Feet): Volume = Length ft × Width ft × Depth ft × Qty. Amount = Volume × Rate × (1 − Discount%/100).`;
+        formulaNote.textContent = `ⓘ Cubic Ft = (Length ft × Width ft × Depth ft) × Quantity`;
       } else {
-        formulaNote.textContent = `ⓘ Cubic Ft (mm): Volume = (Length × Width × Depth in mm) ÷ 28,316,846.592 × Qty (equal to in³ ÷ 1,728). Amount = Volume × Rate × (1 − Discount%/100).`;
+        formulaNote.textContent = `ⓘ Cubic Ft = (Length mm × Width mm × Depth mm) ÷ 28,316,846.592 × Quantity`;
       }
     }
     const hasDims = calc.h > 0 && calc.w > 0 && calc.thickness > 0;
@@ -2010,15 +2010,16 @@ function generateAutoDescription(calc, dimUnit) {
 
   if (calc.basis === "Cubic Ft") {
     if (dimUnit === "in") {
-      // Inches calculation: Length * Width * Depth / 1728 = Volume CFT (divided by 1728 is constant)
+      // Inches (in) Formula: (Length × Width × Depth) / 1728
       const formula = (h && w && d)
-        ? `${h}″ × ${w}″ × ${d}″ ÷ 1728 = ${Number(calc.volume || 0).toFixed(3)} CFT`
-        : `L × W × D (in) ÷ 1728 (constant)`;
+        ? `(${h} in × ${w} in × ${d} in) ÷ 1,728 = ${Number(calc.volume || 0).toFixed(3)} CFT`
+        : `(Length in × Width in × Depth in) ÷ 1,728 × Quantity`;
       return `${formula} | Qty: ${qty} | Rate: ₹${rateVal} | Total: ${amtVal}`;
     } else {
+      // Millimetres (mm) Formula: (Length × Width × Depth) / 28,316,846.592
       const formula = (h && w && d)
-        ? `${h} × ${w} × ${d} ${dimUnit} ÷ 28,316,846.592 (in³ ÷ 1728) = ${Number(calc.volume || 0).toFixed(3)} CFT`
-        : `L × W × D (${dimUnit}) ÷ 1728 constant`;
+        ? `(${h} mm × ${w} mm × ${d} mm) ÷ 28,316,846.592 = ${Number(calc.volume || 0).toFixed(3)} CFT`
+        : `(Length mm × Width mm × Depth mm) ÷ 28,316,846.592 × Quantity`;
       return `${formula} | Qty: ${qty} | Rate: ₹${rateVal} | Total: ${amtVal}`;
     }
   } else if (calc.basis === "Sq Ft") {
