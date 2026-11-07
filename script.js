@@ -1339,7 +1339,7 @@ function normalizeGstinResponse(raw) {
   };
 }
 
-const DEFAULT_GSTIN_BACKEND_PROXY = "https://fancy-overhead-solely-painted.trycloudflare.com/api/gstin";
+const DEFAULT_GSTIN_BACKEND_PROXY = "https://audit-travel-heroes-priced.trycloudflare.com/api/gstin";
 let activeGstinAbortController = null;
 
 async function fetchOnlineGstinDetails(cleanGstin, options = {}) {
