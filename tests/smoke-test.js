@@ -509,6 +509,44 @@ async function run() {
     assert.ok(dimsUsedMmText.includes("1219.2"), "Rounded dimensions must show 1219.2 mm");
     assert.ok(formulaMmText.includes("28,316,846.592") && !formulaMmText.includes("1,728"), "MM formula note must show 28,316,846.592 divisor only");
 
+    // Add this item to the estimate table
+    // Select category first
+    await page.locator("#category").selectOption({ index: 1 });
+    await page.locator("#confirmSanityCheckbox").setChecked(true);
+    await page.locator("#addItem").click();
+    await page.waitForTimeout(300);
+
+    const countAfterAdd = await page.locator("#itemCount").textContent();
+    assert.ok(countAfterAdd.includes("1 item added"), "Table should show 1 item added");
+    console.log("Successfully added item to estimate table:", countAfterAdd);
+
+    // Test Edit button
+    const editBtn = page.locator(".row-edit-btn").first();
+    await editBtn.click();
+    await page.waitForTimeout(200);
+
+    const addItemBtnText = await page.locator("#addItem").textContent();
+    assert.ok(addItemBtnText.includes("Update Item #1"), "Add button should become Update Item #1");
+    const bannerVisible = await page.locator("#editingBanner").isVisible();
+    assert.strictEqual(bannerVisible, true, "Editing banner should be visible");
+    console.log("Edit button successfully loaded item into form with banner and update button!");
+
+    // Update the item
+    await page.locator("#addItem").click();
+    await page.waitForTimeout(300);
+    const countAfterUpdate = await page.locator("#itemCount").textContent();
+    assert.ok(countAfterUpdate.includes("1 item added"), "Item count should remain 1 after update");
+    console.log("Update item completed successfully!");
+
+    // Test Dustbin (Delete) button
+    const deleteBtn = page.locator(".action-btn").first();
+    await deleteBtn.click();
+    await page.waitForTimeout(300);
+
+    const countAfterDelete = await page.locator("#itemCount").textContent();
+    assert.ok(countAfterDelete.includes("0 items added"), "Table should show 0 items added after delete");
+    console.log("Dustbin (🗑) button successfully deleted item from estimate table!");
+
     console.log("All Playwright browser smoke test assertions PASSED!");
   } finally {
     if (browser) await browser.close();

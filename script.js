@@ -1339,13 +1339,19 @@ function normalizeGstinResponse(raw) {
   };
 }
 
-const DEFAULT_GSTIN_BACKEND_PROXY = "https://clarity-disposal-loud-detected.trycloudflare.com/api/gstin";
+const DEFAULT_GSTIN_BACKEND_PROXY = "https://fancy-overhead-solely-painted.trycloudflare.com/api/gstin";
 let activeGstinAbortController = null;
 
 async function fetchOnlineGstinDetails(cleanGstin, options = {}) {
   let backendUrl = (localStorage.getItem("glassCareGstinBackendUrl") || "").trim();
   const apiKey = (localStorage.getItem("glassCareGstinApiKey") || "").trim();
   const provider = (localStorage.getItem("glassCareGstinProvider") || "gstinportal").trim().toLowerCase();
+
+  // If stored URL is an outdated/dead trycloudflare URL, update it to the active default proxy
+  if (backendUrl.includes("trycloudflare.com") && backendUrl !== DEFAULT_GSTIN_BACKEND_PROXY) {
+    backendUrl = DEFAULT_GSTIN_BACKEND_PROXY;
+    try { localStorage.setItem("glassCareGstinBackendUrl", DEFAULT_GSTIN_BACKEND_PROXY); } catch (e) {}
+  }
 
   // If no custom backend URL is set and provider is gstinportal / backend / auto, connect via secure proxy
   if (!backendUrl && (provider === "gstinportal" || provider === "backend" || provider === "auto" || !apiKey)) {
@@ -2067,6 +2073,97 @@ if (descEditRateBtn) {
   });
 }
 
+let editingItemIndex = -1;
+
+function editItem(item, index) {
+  editingItemIndex = index;
+
+  if (categorySelect) {
+    categorySelect.value = item.category || "";
+    if (categorySelect.value !== (item.category || "")) {
+      categorySelect.value = "__custom__";
+      if (categoryCustom) {
+        categoryCustom.style.display = "block";
+        categoryCustom.value = item.category || "";
+      }
+    } else if (categoryCustom) {
+      categoryCustom.style.display = "none";
+    }
+  }
+
+  if (itemNameSelect) {
+    itemNameSelect.value = item.itemName || "";
+    if (itemNameSelect.value !== (item.itemName || "")) {
+      itemNameSelect.value = "__custom__";
+      if (itemNameCustom) {
+        itemNameCustom.style.display = "block";
+        itemNameCustom.value = item.itemName || "";
+      }
+    } else if (itemNameCustom) {
+      itemNameCustom.style.display = "none";
+    }
+  }
+
+  if (dimensionUnitSelect) {
+    dimensionUnitSelect.value = item.dimensionUnit || "mm";
+    lastDimensionUnit = dimensionUnitSelect.value;
+  }
+
+  if (height) height.value = item.enteredHeight != null ? item.enteredHeight : (item.height || "");
+  if (width) width.value = item.enteredWidth != null ? item.enteredWidth : (item.width || "");
+  if (thickness) thickness.value = item.enteredThickness != null ? item.enteredThickness : (item.thickness || "");
+  if (quantity) quantity.value = item.quantity || 1;
+
+  if (unitDisplay) {
+    unitDisplay.value = item.basis || item.unit || "Sq Ft";
+  }
+
+  if (rate) rate.value = item.rate || 0;
+  if (discountPercent) discountPercent.value = item.discountPercent != null ? item.discountPercent : 0;
+  if (gstRateInput) gstRateInput.value = item.gstRate || 18;
+  if (round3InchToggle) round3InchToggle.checked = Boolean(item.round3Inch);
+
+  const descEl = document.getElementById("itemDescription");
+  if (descEl) {
+    descEl.value = item.description || "";
+    isDescriptionCustomized = Boolean(item.description);
+  }
+
+  const addItemBtn = document.getElementById("addItem");
+  if (addItemBtn) {
+    addItemBtn.textContent = `✓ Update Item #${index + 1}`;
+    addItemBtn.style.background = "#2563eb";
+    addItemBtn.style.color = "white";
+  }
+
+  let editBanner = document.getElementById("editingBanner");
+  if (!editBanner) {
+    editBanner = document.createElement("div");
+    editBanner.id = "editingBanner";
+    editBanner.style.cssText = "background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 10px 14px; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; font-size: 13px; color: #1e40af;";
+    const addCard = document.querySelector(".add-card");
+    if (addCard) addCard.insertBefore(editBanner, addCard.firstChild);
+  }
+  editBanner.innerHTML = `<span>✏️ <strong>Editing Item #${index + 1}:</strong> Make changes in the form below and click <b>Update Item</b>.</span><button type="button" id="cancelFormEditBtn" style="background:white; border:1px solid #93c5fd; border-radius:4px; padding:4px 10px; font-size:12px; font-weight:600; color:#1e40af; cursor:pointer;">✕ Cancel</button>`;
+  document.getElementById("cancelFormEditBtn")?.addEventListener("click", cancelFormEdit);
+
+  updateCalculation();
+  document.querySelector(".add-card")?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function cancelFormEdit() {
+  editingItemIndex = -1;
+  const addItemBtn = document.getElementById("addItem");
+  if (addItemBtn) {
+    addItemBtn.textContent = "+ ADD ITEM TO ESTIMATE";
+    addItemBtn.style.background = "";
+    addItemBtn.style.color = "";
+  }
+  const editBanner = document.getElementById("editingBanner");
+  if (editBanner) editBanner.remove();
+  resetItemForm();
+}
+
 /* ADD ITEM */
 document.getElementById("addItem").addEventListener("click", function () {
   if (categorySelect.value === "__custom__") {
@@ -2120,7 +2217,7 @@ document.getElementById("addItem").addEventListener("click", function () {
 
   const dimUnit = dimensionUnitSelect ? dimensionUnitSelect.value : "mm";
   const item = {
-    id: Date.now(),
+    id: (editingItemIndex >= 0 && editingItemIndex < estimateItems.length && estimateItems[editingItemIndex].id) ? estimateItems[editingItemIndex].id : Date.now(),
     category: categoryValue,
     itemName: itemNameValue,
     description: (document.getElementById("itemDescription")?.value || "").trim(),
@@ -2158,13 +2255,22 @@ document.getElementById("addItem").addEventListener("click", function () {
     measureLabel: calc.measureLabel
   };
 
-  estimateItems.push(item);
+  if (editingItemIndex >= 0 && editingItemIndex < estimateItems.length) {
+    estimateItems[editingItemIndex] = item;
+    cancelFormEdit();
+  } else {
+    estimateItems.push(item);
+    resetItemForm();
+  }
   renderEstimate();
-  resetItemForm();
 });
 
 /* RESET ADD FORM */
 function resetItemForm() {
+  if (editingItemIndex !== -1) {
+    cancelFormEdit();
+    return;
+  }
   categorySelect.value = "";
   categoryCustom.style.display = "none";
   categoryCustom.value = "";
@@ -2611,25 +2717,40 @@ function renderEstimate() {
     const actionCell = document.createElement("td");
     actionCell.className = "action-cell";
     const editBtn = document.createElement("button");
+    editBtn.type = "button";
     editBtn.className = "row-edit-btn";
     editBtn.textContent = "Edit";
+    editBtn.title = "Edit this line item";
+
     const saveBtn = document.createElement("button");
+    saveBtn.type = "button";
     saveBtn.className = "row-save-btn";
     saveBtn.textContent = "Save";
     saveBtn.hidden = true;
+
     const cancelBtn = document.createElement("button");
+    cancelBtn.type = "button";
     cancelBtn.className = "row-cancel-btn";
     cancelBtn.textContent = "Cancel";
     cancelBtn.hidden = true;
+
     const rowFields = [...row.querySelectorAll("input, select")];
     rowFields.forEach(field => { field.disabled = true; });
-    editBtn.addEventListener("click", () => {
+
+    editBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
       editBtn.hidden = true;
       saveBtn.hidden = false;
       cancelBtn.hidden = false;
       rowFields.forEach(field => { field.disabled = false; });
+      // Load into top form for full editing
+      editItem(item, index);
     });
-    saveBtn.addEventListener("click", () => {
+
+    saveBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
       recalcItem(item);
       if (item.errors && item.errors.length) {
         alert(`Please correct this item: ${item.errors[0]}`);
@@ -2637,21 +2758,31 @@ function renderEstimate() {
       }
       renderEstimate();
     });
-    cancelBtn.addEventListener("click", () => {
+
+    cancelBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
       const itemIndex = estimateItems.findIndex(savedItem => savedItem.id === item.id);
       if (itemIndex !== -1 && row.dataset.original) {
         estimateItems[itemIndex] = JSON.parse(row.dataset.original);
       }
+      cancelFormEdit();
       renderEstimate();
     });
+
     row.dataset.original = JSON.stringify({ ...item });
     actionCell.append(editBtn, saveBtn, cancelBtn);
 
     const deleteBtn = document.createElement("button");
+    deleteBtn.type = "button";
     deleteBtn.className = "action-btn";
     deleteBtn.textContent = "🗑";
     deleteBtn.title = "Delete item";
-    deleteBtn.addEventListener("click", () => deleteItem(item.id));
+    deleteBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      deleteItem(item.id, index);
+    });
     actionCell.appendChild(deleteBtn);
 
     const rowError = document.createElement("span");
@@ -2707,13 +2838,26 @@ function refreshRowCalcs(row, item) {
 }
 
 /* DELETE */
-function deleteItem(id) {
-  estimateItems = estimateItems.filter(item => item.id !== id);
+function deleteItem(id, index) {
+  if (typeof index === "number" && index >= 0 && index < estimateItems.length) {
+    estimateItems.splice(index, 1);
+  } else {
+    estimateItems = estimateItems.filter(item => String(item.id) !== String(id));
+  }
+  if (editingItemIndex === index) {
+    cancelFormEdit();
+  } else if (editingItemIndex > index) {
+    editingItemIndex--;
+  }
+  try {
+    localStorage.setItem("glassCareEstimate", JSON.stringify(estimateItems));
+  } catch (e) {}
   renderEstimate();
 }
 
 /* RESET ESTIMATE FORM */
 function resetEstimateForm(clearCustomer = true) {
+  cancelFormEdit();
   estimateItems = [];
   try {
     localStorage.removeItem("glassCareEstimate");
