@@ -143,7 +143,11 @@
     });
   }
 
-  const GCE_TRACKER_ENDPOINT = "https://gce-quote-manager-git-main-asfiyashaikh13.vercel.app/api/integrations/glass-care";
+  const GCE_TRACKER_ENDPOINTS = [
+    "https://gce-quote-manager.vercel.app/api/integrations/glass-care",
+    "https://gce-quote-manager-git-main-asfiyashaikh13.vercel.app/api/integrations/glass-care",
+    "http://localhost:3000/api/integrations/glass-care"
+  ];
 
   function setSyncBadge(status) {
     const badge = document.getElementById("syncTrackerBadge");
@@ -176,27 +180,31 @@
 
   async function syncToQuotationManager(docsOrPayload) {
     setSyncBadge("syncing");
-    try {
-      const payload = Array.isArray(docsOrPayload)
-        ? { documents: docsOrPayload }
-        : (docsOrPayload.document ? docsOrPayload : (docsOrPayload.liveEstimate ? docsOrPayload : { document: docsOrPayload }));
-      const res = await fetch(GCE_TRACKER_ENDPOINT, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-        mode: "cors"
-      });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        setSyncBadge("synced");
-        return data;
-      } else {
-        setSyncBadge("error");
+    const payload = Array.isArray(docsOrPayload)
+      ? { documents: docsOrPayload }
+      : (docsOrPayload.document ? docsOrPayload : (docsOrPayload.liveEstimate ? docsOrPayload : { document: docsOrPayload }));
+
+    for (const endpoint of GCE_TRACKER_ENDPOINTS) {
+      try {
+        const res = await fetch(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+          mode: "cors"
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.success) {
+            setSyncBadge("synced");
+            return data;
+          }
+        }
+      } catch (e) {
+        // Continue to fallback endpoint
       }
-    } catch (e) {
-      console.warn("Sync to Quotation Tracker failed:", e);
-      setSyncBadge("error");
     }
+    console.warn("Sync to Quotation Tracker endpoints all failed.");
+    setSyncBadge("error");
   }
   window.syncToQuotationManager = syncToQuotationManager;
 
@@ -426,23 +434,7 @@
     }
 
     // Automatic Live Webhook to GCE Quote Manager (7 Tabs Platform)
-    try {
-      const syncUrl = "https://gce-quote-manager-git-main-asfiyashaikh13.vercel.app/api/integrations/glass-care";
-      fetch(syncUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ document: record }),
-        mode: "cors"
-      }).then(r => r.json()).then(res => {
-        if (res.success) {
-          console.log("✓ Live synced to Quotation Tracker & 7 Tabs:", res);
-        }
-      }).catch(err => {
-        console.warn("Background sync to Quotation Tracker skipped (network offline/blocked):", err);
-      });
-    } catch (syncErr) {
-      console.warn("Sync error:", syncErr);
-    }
+    syncToQuotationManager(record);
 
     if (window.GlassCareDirectory?.save && data.customerGstin) {
       window.GlassCareDirectory.save(data.customerGstin, {
