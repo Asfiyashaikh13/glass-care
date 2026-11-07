@@ -1284,7 +1284,7 @@ window.GlassCareDirectory = {
   save: saveCustomerToDirectory
 };
 
-function showGstinStatus(message, type = "info", autoHide = true) {
+function showGstinStatus(message, type = "info", autoHide = false) {
   const statusEl = document.getElementById("gstinStatus");
   if (!statusEl) return;
 
@@ -1309,14 +1309,21 @@ function showGstinStatus(message, type = "info", autoHide = true) {
   const icon = icons[type] || "ℹ";
   // Strip any leading icons or symbols from message to prevent double-rendering
   const cleanMessage = String(message).replace(/^[✖✓⚠️⚠ℹ⏳\s]+/, "");
-  statusEl.className = `gstin-status ${type}`;
+
+  // Prevent DOM flashing/blinking if already displaying the same message and type
+  const targetClass = `gstin-status ${type}`;
+  if (statusEl.style.display === "flex" && statusEl.className === targetClass && statusEl.textContent.includes(cleanMessage)) {
+    return;
+  }
+
+  statusEl.className = targetClass;
   statusEl.innerHTML = `<span class="status-icon">${icon}</span> <span>${cleanMessage}</span>`;
   statusEl.style.display = "flex";
 
   if (autoHide && type !== "loading") {
     statusEl._hideTimer = setTimeout(() => {
       statusEl.style.display = "none";
-    }, 6000);
+    }, 8000);
   }
 }
 

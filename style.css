@@ -210,7 +210,6 @@ button {
   display: flex;
   align-items: center;
   gap: 8px;
-  animation: fadeIn 0.2s ease;
 }
 .gstin-status.info {
   background: #eff6ff;
