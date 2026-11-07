@@ -143,6 +143,70 @@
     });
   }
 
+  const GCE_TRACKER_ENDPOINT = "https://gce-quote-manager-git-main-asfiyashaikh13.vercel.app/api/integrations/glass-care";
+
+  function setSyncBadge(status) {
+    const badge = document.getElementById("syncTrackerBadge");
+    const dot = document.getElementById("syncDot");
+    const txt = document.getElementById("syncText");
+    if (!badge || !dot || !txt) return;
+    if (status === "syncing") {
+      badge.style.background = "#fef9c3";
+      badge.style.color = "#854d0e";
+      badge.style.borderColor = "#fde047";
+      dot.style.background = "#eab308";
+      txt.textContent = "7 Tabs: Syncing…";
+    } else if (status === "synced") {
+      badge.style.background = "#dcfce7";
+      badge.style.color = "#15803d";
+      badge.style.borderColor = "#86efac";
+      dot.style.background = "#22c55e";
+      txt.textContent = "7 Tabs: Synced ✓";
+      setTimeout(() => {
+        txt.textContent = "7 Tabs: Live";
+      }, 4000);
+    } else if (status === "error") {
+      badge.style.background = "#fee2e2";
+      badge.style.color = "#991b1b";
+      badge.style.borderColor = "#fca5a5";
+      dot.style.background = "#ef4444";
+      txt.textContent = "7 Tabs: Offline";
+    }
+  }
+
+  async function syncToQuotationManager(docsOrPayload) {
+    setSyncBadge("syncing");
+    try {
+      const payload = Array.isArray(docsOrPayload)
+        ? { documents: docsOrPayload }
+        : (docsOrPayload.document ? docsOrPayload : (docsOrPayload.liveEstimate ? docsOrPayload : { document: docsOrPayload }));
+      const res = await fetch(GCE_TRACKER_ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        mode: "cors"
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setSyncBadge("synced");
+        return data;
+      } else {
+        setSyncBadge("error");
+      }
+    } catch (e) {
+      console.warn("Sync to Quotation Tracker failed:", e);
+      setSyncBadge("error");
+    }
+  }
+  window.syncToQuotationManager = syncToQuotationManager;
+
+  // Auto-sync existing documents on initial load
+  if (documents.length > 0) {
+    setTimeout(() => {
+      syncToQuotationManager(documents);
+    }, 1500);
+  }
+
   // 1-Click Sync of all saved Glass Care documents to GCE Quote Manager (7 Tabs Platform)
   const syncQuotationManagerBtn = document.getElementById("syncQuotationManagerBtn");
   if (syncQuotationManagerBtn) {
@@ -156,19 +220,12 @@
       const originalText = syncQuotationManagerBtn.textContent;
       syncQuotationManagerBtn.textContent = "Syncing to Quotation Tracker…";
       try {
-        const syncUrl = "https://gce-quote-manager-git-main-asfiyashaikh13.vercel.app/api/integrations/glass-care";
-        const res = await fetch(syncUrl, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ documents: allDocs }),
-          mode: "cors"
-        });
-        const data = await res.json();
-        if (data.success) {
+        const data = await syncToQuotationManager(allDocs);
+        if (data && data.success) {
           alert(`✓ Successfully synced ${data.processedCount || allDocs.length} document(s) to Quotation Tracker & 7 Tabs Platform!`);
           showStatus(`✓ ${data.processedCount || allDocs.length} document(s) reflected in Quotation Tracker.`);
         } else {
-          alert("Sync error: " + (data.error || "Failed to sync"));
+          alert("Sync failed. Check network connection.");
         }
       } catch (err) {
         alert("Network error syncing to Quotation Tracker: " + err.message);
@@ -1954,6 +2011,9 @@
     Object.assign(settings, event.detail.settings || {});
     if (termsText) termsText.value = settings.terms || DEFAULT_TERMS.join("\n");
     renderDocuments();
+    if (documents.length > 0) {
+      syncToQuotationManager(documents);
+    }
   });
 
   if (window.GlassCareStore?.ready) {

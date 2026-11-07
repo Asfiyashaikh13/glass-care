@@ -1704,6 +1704,35 @@ function persistDraft() {
     currentItem
   };
   try { localStorage.setItem("glassCareDraft", JSON.stringify(draft)); } catch { /* storage may be disabled */ }
+  scheduleLiveEstimateSync();
+}
+
+let liveSyncTimer = null;
+function scheduleLiveEstimateSync() {
+  if (typeof window.syncToQuotationManager !== "function") return;
+  if (!Array.isArray(estimateItems) || estimateItems.length === 0) return;
+  clearTimeout(liveSyncTimer);
+  liveSyncTimer = setTimeout(() => {
+    const customerName = (document.getElementById("customerName")?.value || "").trim();
+    const flatNo = (document.getElementById("flatNo")?.value || "").trim();
+    const buildingName = (document.getElementById("buildingName")?.value || "").trim();
+    const customerPhone = (document.getElementById("customerPhone")?.value || "").trim();
+    const estNum = document.getElementById("estimateNumber")?.textContent || "GCE-Estimate-Live";
+    const totals = typeof GlassCareCalculations !== "undefined"
+      ? GlassCareCalculations.calculateTotals(estimateItems, customerState.value)
+      : undefined;
+
+    window.syncToQuotationManager({
+      estimateItems,
+      estimateNumber: estNum,
+      customerName: customerName || "Active Client",
+      flatNo,
+      buildingName,
+      customerPhone,
+      state: customerState.value || "Karnataka",
+      totals
+    });
+  }, 1800);
 }
 
 /* CUSTOM VALUE TOGGLES */
