@@ -2020,39 +2020,29 @@ function updateDescSummary() {
   const descRateDisplay = document.getElementById("descRateDisplay");
   const descTotalAmountDisplay = document.getElementById("descTotalAmountDisplay");
 
-  const qVal = Math.max(1, Number(descQtyInput ? descQtyInput.value : (quantity?.value || 1)) || 1);
-  const rVal = Math.max(0, Number(descRateInput ? descRateInput.value : (rate?.value || 0)) || 0);
+  const qVal = Math.max(1, Number(descQtyInput ? descQtyInput.value : 1) || 1);
+  const rVal = Math.max(0, Number(descRateInput ? descRateInput.value : 0) || 0);
 
   if (descQtyDisplay) descQtyDisplay.textContent = qVal;
   if (descRateDisplay) descRateDisplay.textContent = `₹${rVal.toFixed(2)}`;
 
-  const calc = getCalculation();
-  const enteredH = Number(height?.value) || 0;
-  const enteredW = Number(width?.value) || 0;
-  const enteredD = Number(thickness?.value) || 0;
-  const hasDimensions = Boolean(enteredH && enteredW && (calc.basis !== "Cubic Ft" || enteredD));
-
-  let measurePerUnit = 1;
-  if (hasDimensions && calc && calc.measure) {
-    const origQty = Number(quantity?.value) || 1;
-    measurePerUnit = origQty > 0 ? (calc.measure / origQty) : calc.measure;
-  }
-
-  const discPct = Number(discountPercent ? discountPercent.value : 0) || 0;
-  const gross = measurePerUnit * qVal * rVal;
-  const disc = (gross * discPct) / 100;
-  const net = Math.max(0, gross - disc);
+  // The description / hardware / leftover piece is PER PIECE: Quantity × Rate
+  // Never multiply by glass area (Sq Ft) or glass volume (Cubic Ft) from the inputs above
+  const total = qVal * rVal;
 
   if (descTotalAmountDisplay) {
-    descTotalAmountDisplay.textContent = GlassCareCalc.formatMoney(net);
+    descTotalAmountDisplay.textContent = GlassCareCalc.formatMoney(total);
+  }
+
+  const addBtn = document.getElementById("addLeftoverItemBtn");
+  if (addBtn) {
+    addBtn.textContent = `＋ Add Leftover Item (${GlassCareCalc.formatMoney(total)})`;
   }
 
   return {
     quantity: qVal,
     rate: rVal,
-    amount: net,
-    measurePerUnit,
-    hasDimensions
+    amount: total
   };
 }
 
@@ -2169,21 +2159,21 @@ if (addLeftoverItemBtn) {
 
     const leftoverItem = {
       id: Date.now(),
-      category: "Leftover Material / Accessories",
-      itemName: descText.length <= 40 ? descText : "Leftover Piece",
+      category: "Accessories / Hardware",
+      itemName: descText.length <= 40 ? descText : "Hardware / Leftover Piece",
       description: descText,
-      unit: summary.hasDimensions ? (unitDisplay?.value || "Per Piece") : "Per Piece",
-      basis: summary.hasDimensions ? (unitDisplay?.value || "Per Piece") : "Per Piece",
-      dimensionUnit: dimensionUnitSelect?.value || "in",
-      enteredHeight: summary.hasDimensions ? (Number(height?.value) || 0) : 0,
-      enteredWidth: summary.hasDimensions ? (Number(width?.value) || 0) : 0,
-      enteredThickness: summary.hasDimensions ? (Number(thickness?.value) || 0) : 0,
-      height: summary.hasDimensions ? (Number(height?.value) || 0) : 0,
-      width: summary.hasDimensions ? (Number(width?.value) || 0) : 0,
-      thickness: summary.hasDimensions ? (Number(thickness?.value) || 0) : 0,
+      unit: "Per Piece",
+      basis: "Per Piece",
+      dimensionUnit: "piece",
+      enteredHeight: 0,
+      enteredWidth: 0,
+      enteredThickness: 0,
+      height: 0,
+      width: 0,
+      thickness: 0,
       quantity: qVal,
       rate: rVal,
-      discountPercent: Number(discountPercent ? discountPercent.value : 0) || 0,
+      discountPercent: 0,
       gstRate: gstRate,
       grossAmount: taxable,
       discountAmount: 0,
@@ -2194,9 +2184,9 @@ if (addLeftoverItemBtn) {
       sgst: isInterstate ? 0 : taxAmt / 2,
       igst: isInterstate ? taxAmt : 0,
       lineTotal: taxable + taxAmt,
-      explanation: `${descText} (Qty: ${qVal} × ₹${rVal})`,
-      measure: summary.hasDimensions ? summary.measurePerUnit * qVal : qVal,
-      measureLabel: summary.hasDimensions ? `${(summary.measurePerUnit * qVal).toFixed(3)} ${unitDisplay?.value || "CFT"}` : `${qVal} Pcs`
+      explanation: `${descText} (${qVal} Pc${qVal > 1 ? "s" : ""} × ₹${rVal.toFixed(2)})`,
+      measure: qVal,
+      measureLabel: `${qVal} Pcs`
     };
 
     estimateItems.push(leftoverItem);
@@ -2369,70 +2359,43 @@ document.getElementById("addItem").addEventListener("click", function () {
   }
 
   const dimUnit = dimensionUnitSelect ? dimensionUnitSelect.value : "mm";
-  const descQtyEl = document.getElementById("descQtyInput");
-  const descRateEl = document.getElementById("descRateInput");
-  const effectiveQty = isDescQtyCustomized ? Math.max(1, Number(descQtyEl?.value) || 1) : calc.quantity;
-  const effectiveRate = isDescRateCustomized ? Math.max(0, Number(descRateEl?.value) || 0) : calc.rate;
-
-  let finalCalc = calc;
-  if ((isDescQtyCustomized || isDescRateCustomized) && (effectiveQty !== calc.quantity || effectiveRate !== calc.rate)) {
-    const round3Inch = round3InchToggle ? round3InchToggle.checked : false;
-    const basis = unitDisplay ? unitDisplay.value : "Sq Ft";
-    finalCalc = GlassCareCalc.calculateLine({
-      unit: basis,
-      basis: basis,
-      dimensionUnit: dimUnit,
-      round3Inch: round3Inch,
-      quantity: effectiveQty,
-      rate: effectiveRate,
-      defaultRate: effectiveRate,
-      discountPercent: discountPercent ? discountPercent.value : 0,
-      gstRate: gstRateInput ? gstRateInput.value : 18,
-      enteredHeight: Number(height.value) || 0,
-      enteredWidth: Number(width.value) || 0,
-      enteredThickness: Number(thickness.value) || 0,
-      category: categoryValue,
-      state: customerState ? customerState.value : "Karnataka"
-    });
-  }
-
   const item = {
     id: (editingItemIndex >= 0 && editingItemIndex < estimateItems.length && estimateItems[editingItemIndex].id) ? estimateItems[editingItemIndex].id : Date.now(),
     category: categoryValue,
     itemName: itemNameValue,
     description: (document.getElementById("itemDescription")?.value || "").trim(),
-    unit: finalCalc.basis,
-    basis: finalCalc.basis,
+    unit: calc.basis,
+    basis: calc.basis,
     dimensionUnit: dimUnit,
-    enteredHeight: finalCalc.enteredHeight,
-    enteredWidth: finalCalc.enteredWidth,
-    enteredThickness: finalCalc.enteredThickness,
-    height: finalCalc.enteredHeight,
-    width: finalCalc.enteredWidth,
-    thickness: finalCalc.enteredThickness,
-    heightMm: finalCalc.heightMm,
-    widthMm: finalCalc.widthMm,
-    thicknessMm: finalCalc.thicknessMm,
-    billedHeightMm: finalCalc.billedHeightMm,
-    billedWidthMm: finalCalc.billedWidthMm,
-    billedThicknessMm: finalCalc.billedThicknessMm,
-    round3Inch: finalCalc.round3Inch,
-    quantity: finalCalc.quantity,
-    rate: finalCalc.rate,
-    discountPercent: finalCalc.discountPercent,
-    gstRate: finalCalc.gstRate,
-    grossAmount: finalCalc.grossAmount,
-    discountAmount: finalCalc.discountAmount,
-    taxableAmount: finalCalc.taxableAmount,
-    taxAmount: finalCalc.taxAmount,
-    amount: finalCalc.taxableAmount,
-    cgst: finalCalc.cgst,
-    sgst: finalCalc.sgst,
-    igst: finalCalc.igst,
-    lineTotal: finalCalc.lineTotal,
-    explanation: finalCalc.explanation,
-    measure: finalCalc.measure,
-    measureLabel: finalCalc.measureLabel
+    enteredHeight: calc.enteredHeight,
+    enteredWidth: calc.enteredWidth,
+    enteredThickness: calc.enteredThickness,
+    height: calc.enteredHeight,
+    width: calc.enteredWidth,
+    thickness: calc.enteredThickness,
+    heightMm: calc.heightMm,
+    widthMm: calc.widthMm,
+    thicknessMm: calc.thicknessMm,
+    billedHeightMm: calc.billedHeightMm,
+    billedWidthMm: calc.billedWidthMm,
+    billedThicknessMm: calc.billedThicknessMm,
+    round3Inch: calc.round3Inch,
+    quantity: calc.quantity,
+    rate: calc.rate,
+    discountPercent: calc.discountPercent,
+    gstRate: calc.gstRate,
+    grossAmount: calc.grossAmount,
+    discountAmount: calc.discountAmount,
+    taxableAmount: calc.taxableAmount,
+    taxAmount: calc.taxAmount,
+    amount: calc.taxableAmount,
+    cgst: calc.cgst,
+    sgst: calc.sgst,
+    igst: calc.igst,
+    lineTotal: calc.lineTotal,
+    explanation: calc.explanation,
+    measure: calc.measure,
+    measureLabel: calc.measureLabel
   };
 
   if (editingItemIndex >= 0 && editingItemIndex < estimateItems.length) {
