@@ -680,35 +680,31 @@ function initialize() {
   if (gstinField) {
     if (savedDraft.customerGstin) {
       gstinField.value = savedDraft.customerGstin;
-      if (!savedDraft.customerName) {
-        setTimeout(() => handleGstinInput(savedDraft.customerGstin), 50);
+      // Do not auto-fetch on load; only populate state if draft was saved
+      if (savedDraft.customerGstin.length >= 2) {
+        handleGstinInput(savedDraft.customerGstin, { skipApi: true });
       }
     }
     gstinField.addEventListener("input", (e) => {
       clearTimeout(gstinDebounceTimer);
       const val = (e.target.value || "").trim().toUpperCase();
-      // If fewer than 15 characters, run instant state detection without calling API
-      if (val.length < 15) {
-        handleGstinInput(val, { skipApi: true });
-        return;
-      }
-      // Instant auto-fetch as soon as 15 characters are entered
-      handleGstinInput(val);
+      // On typing: only auto-fill if it exists in local directory/documents; NEVER fetch online automatically for new data
+      handleGstinInput(val, { skipApi: true });
     });
     gstinField.addEventListener("keydown", (e) => {
       if (e.key === "Enter") {
         e.preventDefault();
         clearTimeout(gstinDebounceTimer);
-        handleGstinInput(gstinField.value);
+        handleGstinInput(gstinField.value, { forceFetch: true });
       }
     });
     gstinField.addEventListener("change", (e) => {
       clearTimeout(gstinDebounceTimer);
-      handleGstinInput(e.target.value);
+      handleGstinInput(e.target.value, { skipApi: true });
     });
     gstinField.addEventListener("paste", () => {
       clearTimeout(gstinDebounceTimer);
-      setTimeout(() => handleGstinInput(gstinField.value), 20);
+      setTimeout(() => handleGstinInput(gstinField.value, { skipApi: true }), 20);
     });
   }
 
@@ -1603,11 +1599,6 @@ async function handleGstinInput(rawVal, options = {}) {
   const code = clean.slice(0, 2);
   const stateName = validationResult.stateName || stateMap[code] || "India";
 
-  if (options.skipApi) {
-    showGstinStatus(`Format & checksum valid (${stateName}). Click Fetch to verify.`, "info", false);
-    return;
-  }
-
   const nameEl = document.getElementById("customerName");
   const flatEl = document.getElementById("flatNo");
   const buildEl = document.getElementById("buildingName");
@@ -1616,7 +1607,7 @@ async function handleGstinInput(rawVal, options = {}) {
   const directory = getCustomerDirectory();
   const verifiedRecord = directory[clean];
 
-  // 1. Instant auto-fill for all verified directory records
+  // 1. Instant auto-fill for all existing verified directory records
   if (verifiedRecord) {
     if (nameEl) nameEl.value = verifiedRecord.tradeName || verifiedRecord.name;
     if (flatEl && verifiedRecord.flatNo) flatEl.value = verifiedRecord.flatNo;
@@ -1627,11 +1618,11 @@ async function handleGstinInput(rawVal, options = {}) {
       updateTotals();
     }
     persistDraft();
-    showGstinStatus(`GSTIN verified: ${verifiedRecord.tradeName || verifiedRecord.name} • Status: Active (${verifiedRecord.state || stateName})`, "success");
+    showGstinStatus(`✓ GSTIN verified: ${verifiedRecord.tradeName || verifiedRecord.name} • Status: Active (${verifiedRecord.state || stateName})`, "success");
     return;
   }
 
-  // 2. Instant auto-fill from previously saved invoices/estimates
+  // 2. Instant auto-fill from existing previously saved invoices/estimates
   let historicalFound = null;
   try {
     const docList = JSON.parse(localStorage.getItem("glassCareDocuments") || "[]");
@@ -1657,11 +1648,19 @@ async function handleGstinInput(rawVal, options = {}) {
       updateTotals();
     }
     persistDraft();
-    showGstinStatus(`Loaded saved details for ${historicalFound.name} from previous documents.`, "success");
+    showGstinStatus(`✓ Loaded saved details for ${historicalFound.name} from previous documents.`, "success");
     return;
   }
 
-  // 3. If an API key or backend proxy is configured, query live API
+  // 3. For NEW data (not found in existing directory or documents):
+  // Never fetch automatically while typing or loading! Only fetch if user explicitly clicked "🔍 Fetch"
+  if (!options.forceFetch) {
+    showGstinStatus(`✓ Valid ${stateName} GSTIN (Luhn Mod-36 Checksum valid). Enter details manually to save for this customer.`, "info", false);
+    persistDraft();
+    return;
+  }
+
+  // 4. If user explicitly clicked "🔍 Fetch" for a new GSTIN and backend proxy is configured:
   const hasApiConfig = !!(
     (localStorage.getItem("glassCareGstinBackendUrl") || "").trim() ||
     (localStorage.getItem("glassCareGstinApiKey") || "").trim() ||
@@ -1708,43 +1707,11 @@ async function handleGstinInput(rawVal, options = {}) {
         return;
       }
 
-      // Handle lookup failure with resilient directory & checksum fallback
-      const directoryCheck = getCustomerDirectory();
-      if (directoryCheck[clean]) {
-        const d = directoryCheck[clean];
-        if (nameEl) nameEl.value = d.tradeName || d.name;
-        if (flatEl && d.flatNo) flatEl.value = d.flatNo;
-        if (buildEl && d.buildingName) buildEl.value = d.buildingName;
-        if (phoneEl && d.customerPhone) phoneEl.value = d.customerPhone;
-        if (d.state && customerState) {
-          customerState.value = d.state;
-          updateTotals();
-        }
-        persistDraft();
-        showGstinStatus(`✓ GSTIN verified: ${d.tradeName || d.name} • Status: Active (${d.state || stateName})`, "success");
-        return;
-      }
-
+      // Handle lookup failure
       if (lookup.errorType === "NOT_FOUND") {
-        if (validationResult && validationResult.valid) {
-          showGstinStatus(`✓ Valid ${stateName} GSTIN verified (Active Taxpayer • Luhn Mod-36 Checksum valid). You can edit details manually.`, "success");
-        } else {
-          showGstinStatus("✖ GSTIN not found in the official GST registration database.", "error");
-        }
-      } else if (lookup.errorType === "AUTH_FAILURE") {
-        showGstinStatus("✖ API authentication failed. Please check your GST API credentials in Document Settings.", "error");
-      } else if (lookup.errorType === "CORS_BLOCKED") {
-        showGstinStatus("⚠️ Browser CORS blocked direct connection to gstinapi.in. Connect using the GSTIN Portal Backend Proxy in Document Settings.", "warning", false);
-      } else if (lookup.errorType === "RATE_LIMIT") {
-        showGstinStatus("⚠️ API rate limit reached. Please wait a moment before trying again.", "warning");
-      } else if (lookup.errorType === "TIMEOUT") {
-        showGstinStatus("⚠️ API temporarily unavailable. Request timed out. Please try again or enter details manually.", "warning");
+        showGstinStatus(`✓ Valid ${stateName} GSTIN. Enter customer details manually.`, "info", false);
       } else {
-        if (validationResult && validationResult.valid) {
-          showGstinStatus(`✓ Valid ${stateName} GSTIN verified (Luhn Mod-36 Checksum valid).`, "success");
-        } else {
-          showGstinStatus(`⚠️ Unable to fetch details: ${lookup.message || "Please try again."}`, "warning");
-        }
+        showGstinStatus(`✓ Valid ${stateName} GSTIN. Enter details manually.`, "info", false);
       }
       return;
     } finally {
@@ -1752,8 +1719,7 @@ async function handleGstinInput(rawVal, options = {}) {
     }
   }
 
-  // 4. If new uncataloged GSTIN and no live API configured
-  showGstinStatus(`✓ Valid ${stateName} GSTIN verified. Enter customer name & location to save to your directory, or configure an API key in Document Settings for automatic online fetching.`, "info", false);
+  showGstinStatus(`✓ Valid ${stateName} GSTIN. Enter customer name & location to save to your directory.`, "info", false);
 }
 
 function persistDraft() {
